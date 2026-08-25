@@ -1,4 +1,4 @@
-module github.com/meigma/template-go
+module github.com/componere/incus-spire-attestor
 
 go 1.26.6
 
