@@ -92,8 +92,5 @@ func isRetryable(err error) bool {
 		return true
 	}
 	var op *net.OpError
-	if errors.As(err, &op) {
-		return true
-	}
-	return false
+	return errors.As(err, &op)
 }

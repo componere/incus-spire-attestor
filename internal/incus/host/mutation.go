@@ -43,10 +43,24 @@ func wrapMutation(action string, err error) error {
 	if err == nil {
 		return nil
 	}
-	if isContextError(err) {
-		return fmt.Errorf("%s: %w", action, err)
+	return secretSafeError{message: mutationMessage(action, err), cause: err}
+}
+
+// mutationMessage returns constant action text plus a sanitized diagnostic.
+func mutationMessage(action string, err error) string {
+	if status, ok := api.StatusErrorMatch(err); ok {
+		return fmt.Sprintf("%s: %d", action, status)
 	}
-	return secretSafeError{message: action, cause: err}
+	if errors.Is(err, errReplacedTarget) {
+		return action + ": " + errReplacedTarget.Error()
+	}
+	if errors.Is(err, context.Canceled) {
+		return action + ": " + context.Canceled.Error()
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return action + ": " + context.DeadlineExceeded.Error()
+	}
+	return action
 }
 
 // SetNonce stores nonce under key on instance.
@@ -96,11 +110,11 @@ func (c *Client) mutateOnce(ctx context.Context, target attest.Instance, key att
 		}
 		return err
 	}
-	if err := matchResolvedTarget(target, current); err != nil {
-		if nonce == nil && errors.Is(err, errReplacedTarget) {
+	if matchErr := matchResolvedTarget(target, current); matchErr != nil {
+		if nonce == nil && errors.Is(matchErr, errReplacedTarget) {
 			return nil
 		}
-		return err
+		return matchErr
 	}
 	writable := current.Writable()
 	config := copyConfig(writable.Config)
@@ -131,7 +145,7 @@ func matchResolvedTarget(target attest.Instance, current *api.Instance) error {
 	if current.Project != "" && current.Project != string(target.Project) {
 		return errReplacedTarget
 	}
-	if current.Name != "" && current.Name != string(target.Name) {
+	if current.Name != string(target.Name) {
 		return errReplacedTarget
 	}
 	if current.Type != string(attest.InstanceTypeVirtualMachine) {

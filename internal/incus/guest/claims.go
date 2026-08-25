@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,15 +90,10 @@ func decodeInfo(raw []byte) (guestInfo, error) {
 		return guestInfo{}, fmt.Errorf("decode guest info: %w", err)
 	}
 	var extra json.RawMessage
-	if err := dec.Decode(&extra); !isEOF(err) {
-		return guestInfo{}, fmt.Errorf("decode guest info: trailing JSON data")
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		return guestInfo{}, errors.New("decode guest info: trailing JSON data")
 	}
 	return info, nil
-}
-
-// isEOF reports a clean end of a JSON stream.
-func isEOF(err error) bool {
-	return err == io.EOF
 }
 
 // readMetadata loads cloud-init identity from /1.0/meta-data.
@@ -122,7 +118,7 @@ func parseMetadata(raw []byte) guestMetadata {
 		sawID   bool
 		sawHost bool
 	)
-	for _, line := range strings.Split(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\n") {
 		key, value, ok := strings.Cut(strings.TrimSpace(line), ":")
 		if !ok {
 			continue

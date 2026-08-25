@@ -2,6 +2,7 @@ package host
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -89,11 +90,11 @@ func (c *Client) Lookup(
 
 // scoped returns a project-qualified, request-scoped Incus client.
 func (c *Client) scoped(ctx context.Context, project attest.ProjectName) (incus.InstanceServer, error) {
-	return withContext(c.server.UseProject(string(project)), ctx)
+	return withContext(ctx, c.server.UseProject(string(project)))
 }
 
 // withContext clones server after UseProject so WithContext cannot mutate the shared client.
-func withContext(server incus.InstanceServer, ctx context.Context) (incus.InstanceServer, error) {
+func withContext(ctx context.Context, server incus.InstanceServer) (incus.InstanceServer, error) {
 	clone, ok := server.(contextual)
 	if !ok {
 		return nil, errMissingContext
@@ -102,6 +103,6 @@ func withContext(server incus.InstanceServer, ctx context.Context) (incus.Instan
 }
 
 // errMissingContext is returned when an Incus client cannot attach request context.
-var errMissingContext = fmt.Errorf("incus client does not support request context")
+var errMissingContext = errors.New("incus client does not support request context")
 
 var _ server.Incus = (*Client)(nil)

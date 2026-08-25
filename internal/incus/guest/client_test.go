@@ -1,12 +1,14 @@
 package guest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -165,9 +167,18 @@ func (s *guestServer) recordedPaths() []string {
 	return out
 }
 
+func shortSocketDir() (string, error) {
+	return os.MkdirTemp("/tmp", "incus-guest-")
+}
+
 func startUnixServer(t *testing.T, handler http.Handler) string {
 	t.Helper()
-	socket := filepath.Join(t.TempDir(), "incus.sock")
+	dir, err := shortSocketDir()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+	})
+	socket := filepath.Join(dir, "s")
 	listener, err := net.Listen("unix", socket)
 	require.NoError(t, err)
 	server := &http.Server{Handler: handler}
@@ -228,7 +239,9 @@ func TestClaimsUsesFirstGeneratedMetadata(t *testing.T) {
 	t.Parallel()
 
 	tc := newTestContext(t, testProject)
-	tc.server.meta = []byte("#cloud-config\ninstance-id: i-0123456789abcdef\nlocal-hostname: vm-01\n#cloud-config\ninstance-id: operator-id\nlocal-hostname: operator-name\n")
+	tc.server.meta = []byte(
+		"#cloud-config\ninstance-id: i-0123456789abcdef\nlocal-hostname: vm-01\n#cloud-config\ninstance-id: operator-id\nlocal-hostname: operator-name\n",
+	)
 	got, err := tc.client.Claims(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, testCloudInitID, got.CloudInitID)
@@ -239,10 +252,12 @@ func TestClaimsRejectsContainer(t *testing.T) {
 	t.Parallel()
 
 	tc := newTestContext(t, testProject)
-	tc.server.info = []byte(`{"api_version":"1.0","location":"member-01","instance_type":"container","state":"Started"}`)
+	tc.server.info = []byte(
+		`{"api_version":"1.0","location":"member-01","instance_type":"container","state":"Started"}`,
+	)
 	_, err := tc.client.Claims(context.Background())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, attest.ErrDenied)
+	require.ErrorIs(t, err, attest.ErrDenied)
 	assert.Contains(t, err.Error(), "container")
 }
 
@@ -250,7 +265,9 @@ func TestClaimsIgnoresUnknownInfoFields(t *testing.T) {
 	t.Parallel()
 
 	tc := newTestContext(t, testProject)
-	tc.server.info = []byte(`{"api_version":"1.0","location":"member-01","instance_type":"virtual-machine","state":"Started","extra":"ok"}`)
+	tc.server.info = []byte(
+		`{"api_version":"1.0","location":"member-01","instance_type":"virtual-machine","state":"Started","extra":"ok"}`,
+	)
 	got, err := tc.client.Claims(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, validClaims(), got)
@@ -260,7 +277,9 @@ func TestClaimsRejectsTrailingInfoJSON(t *testing.T) {
 	t.Parallel()
 
 	tc := newTestContext(t, testProject)
-	tc.server.info = []byte(`{"api_version":"1.0","location":"member-01","instance_type":"virtual-machine","state":"Started"}{"x":1}`)
+	tc.server.info = []byte(
+		`{"api_version":"1.0","location":"member-01","instance_type":"virtual-machine","state":"Started"}{"x":1}`,
+	)
 	_, err := tc.client.Claims(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trailing JSON")
@@ -273,7 +292,7 @@ func TestClaimsRejectsMissingMetadata(t *testing.T) {
 	tc.server.meta = []byte("#cloud-config\n")
 	_, err := tc.client.Claims(context.Background())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, attest.ErrDenied)
+	require.ErrorIs(t, err, attest.ErrDenied)
 }
 
 func TestClaimsRejectsMalformedDMI(t *testing.T) {
@@ -283,7 +302,7 @@ func TestClaimsRejectsMalformedDMI(t *testing.T) {
 	require.NoError(t, os.WriteFile(tc.dmi, []byte("not-a-uuid"), 0o600))
 	_, err := tc.client.Claims(context.Background())
 	require.Error(t, err)
-	assert.NotErrorIs(t, err, attest.ErrDenied)
+	require.NotErrorIs(t, err, attest.ErrDenied)
 	assert.Contains(t, err.Error(), "product uuid")
 }
 
@@ -363,7 +382,7 @@ func TestReadConfigClassifiesTransientStatuses(t *testing.T) {
 			assert.NotContains(t, err.Error(), testConfigValue)
 			if tt.timeout {
 				var timeout timeoutError
-				require.True(t, errors.As(err, &timeout))
+				require.ErrorAs(t, err, &timeout)
 				assert.True(t, timeout.Timeout())
 			}
 		})
@@ -409,7 +428,7 @@ func TestReadConfigPreservesCancellation(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, found)
 	assert.Empty(t, value)
-	assert.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
 	assert.False(t, isRetryable(err), "cancellation must not be classified as retryable")
 	assert.NotContains(t, err.Error(), testConfigKey)
 }
@@ -425,7 +444,7 @@ func TestReadConfigPreservesDeadline(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, found)
 	assert.Empty(t, value)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.NotContains(t, err.Error(), testConfigKey)
 }
 
@@ -438,7 +457,7 @@ func TestClaimsPreservesCancellation(t *testing.T) {
 	cancel()
 	_, err := tc.client.Claims(ctx)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestNewUsesProductionPaths(t *testing.T) {
@@ -446,6 +465,7 @@ func TestNewUsesProductionPaths(t *testing.T) {
 
 	client := New(testProject)
 	assert.Equal(t, attest.ProjectName(testProject), client.project)
+	assert.Equal(t, defaultSocketPath, client.socketPath)
 	assert.Equal(t, defaultDMIPath, client.dmiPath)
 	assert.NotNil(t, client.http)
 }
@@ -458,4 +478,74 @@ func TestReadConfigDoesNotAcceptRawChallenge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, escapedConfigPath, tc.server.recordedPaths()[0])
 	assert.NotEqual(t, "/1.0/config/"+testConfigKey+"?raw=1", tc.server.recordedPaths()[0])
+}
+
+func TestConfigPathEscapesHostileKeysAsOneSegment(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		key  attest.ConfigKey
+		want string
+	}{
+		{
+			name: "embedded slash",
+			key:  attest.ConfigKey("user.spire/attestor.nonce"),
+			want: "/1.0/config/user.spire%2Fattestor.nonce",
+		},
+		{
+			name: "query string",
+			key:  attest.ConfigKey("user.spire.attestor.nonce.?x=1"),
+			want: "/1.0/config/user.spire.attestor.nonce.%3Fx=1",
+		},
+		{
+			name: "already percent-encoded slash",
+			key:  attest.ConfigKey("user.spire.attestor.nonce.%2f"),
+			want: "/1.0/config/user.spire.attestor.nonce.%252f",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := configPath(tt.key)
+			assert.Equal(t, tt.want, got)
+			rest, ok := strings.CutPrefix(got, configPrefix)
+			require.True(t, ok, "path must stay under /1.0/config/")
+			assert.NotContains(t, rest, "/", "escaped key must remain one segment")
+			assert.NotContains(t, rest, "?", "query must not leave the path segment")
+		})
+	}
+}
+
+func TestClaimsRejectsOversizedBody(t *testing.T) {
+	t.Parallel()
+
+	tc := newTestContext(t, testProject)
+	tc.server.meta = paddedMetadata(t, maxGuestBody+1)
+	_, err := tc.client.Claims(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds")
+}
+
+func TestClaimsAcceptsExactBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	tc := newTestContext(t, testProject)
+	tc.server.meta = paddedMetadata(t, maxGuestBody)
+	got, err := tc.client.Claims(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, validClaims(), got)
+}
+
+func paddedMetadata(t *testing.T, size int) []byte {
+	t.Helper()
+	base := append(bytes.TrimRight(golden(t, "meta-data"), "\n"), '\n')
+	require.Less(t, len(base), size)
+	out := make([]byte, size)
+	copy(out, base)
+	for i := len(base); i < size; i++ {
+		out[i] = '#'
+	}
+	return out
 }

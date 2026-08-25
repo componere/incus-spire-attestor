@@ -2,6 +2,7 @@ package host
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/lxc/incus/v7/shared/api"
 
@@ -19,21 +20,22 @@ func mapInstance(project attest.ProjectName, name attest.InstanceName, inst *api
 	if inst == nil {
 		return attest.Instance{}, fmt.Errorf("%w: instance is required", attest.ErrDenied)
 	}
-	mappedProject := project
-	if inst.Project != "" {
-		mappedProject = attest.ProjectName(inst.Project)
+	if inst.Name == "" {
+		return attest.Instance{}, fmt.Errorf("%w: instance name is required", attest.ErrDenied)
 	}
-	mappedName := name
-	if inst.Name != "" {
-		mappedName = attest.InstanceName(inst.Name)
+	if inst.Name != string(name) {
+		return attest.Instance{}, fmt.Errorf("%w: instance name mismatch", attest.ErrDenied)
+	}
+	if inst.Project != "" && inst.Project != string(project) {
+		return attest.Instance{}, fmt.Errorf("%w: project mismatch", attest.ErrDenied)
 	}
 	uuid, err := attest.NewInstanceUUID(configValue(inst.ExpandedConfig, volatileUUIDKey))
 	if err != nil {
 		return attest.Instance{}, fmt.Errorf("%w: invalid instance uuid", attest.ErrDenied)
 	}
 	return attest.Instance{
-		Project:        mappedProject,
-		Name:           mappedName,
+		Project:        project,
+		Name:           name,
 		UUID:           uuid,
 		Type:           attest.InstanceType(inst.Type),
 		Location:       inst.Location,
@@ -67,8 +69,6 @@ func copyConfig(cfg api.ConfigMap) map[string]string {
 		return map[string]string{}
 	}
 	out := make(map[string]string, len(cfg))
-	for key, value := range cfg {
-		out[key] = value
-	}
+	maps.Copy(out, cfg)
 	return out
 }

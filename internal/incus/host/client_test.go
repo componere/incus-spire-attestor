@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -109,6 +110,7 @@ type recordedUpdate struct {
 
 type fakeServer struct {
 	incus.InstanceServer
+
 	// store is the shared fake backend.
 	store *fakeStore
 	// project is the UseProject clone's project.
@@ -121,14 +123,16 @@ type fakeServer struct {
 
 type fakeOp struct {
 	incus.Operation
+
 	// store consumes queued wait errors.
 	store *fakeStore
 }
 
 func newFake() *fakeServer {
 	return &fakeServer{
-		store: &fakeStore{instances: map[instanceKey]*instanceRecord{}},
-		root:  true,
+		store:   &fakeStore{instances: map[instanceKey]*instanceRecord{}},
+		project: testProject,
+		root:    true,
 	}
 }
 
@@ -265,14 +269,14 @@ func (s *fakeServer) putInstanceLocked(project, name string, inst api.Instance, 
 	s.store.instances[instanceKey{project: project, name: name}] = &instanceRecord{inst: cloned, etag: etag}
 }
 
-func (s *fakeServer) instance(project, name string) (api.Instance, string, bool) {
+func (s *fakeServer) instance() (api.Instance, bool) {
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
-	rec, ok := s.store.instances[instanceKey{project: project, name: name}]
+	rec, ok := s.store.instances[instanceKey{project: s.project, name: testName}]
 	if !ok {
-		return api.Instance{}, "", false
+		return api.Instance{}, false
 	}
-	return cloneInstance(rec.inst), rec.etag, true
+	return cloneInstance(rec.inst), true
 }
 
 func vmInstance() api.Instance {
@@ -345,10 +349,23 @@ func TestLookupMapsDetachedCopy(t *testing.T) {
 
 	got.ExpandedConfig[operatorKey] = "mutated"
 	got.Profiles[0] = "mutated"
-	stored, _, ok := fake.instance(testProject, testName)
+	stored, ok := fake.instance()
 	require.True(t, ok)
 	assert.Equal(t, operatorValue, stored.ExpandedConfig[operatorKey])
 	assert.Equal(t, "default", stored.Profiles[0])
+}
+
+func TestMapInstanceDetachesConfigAndProfiles(t *testing.T) {
+	t.Parallel()
+
+	source := vmInstance()
+	got, err := mapInstance(testProject, testName, &source)
+	require.NoError(t, err)
+
+	got.ExpandedConfig[operatorKey] = "mutated"
+	got.Profiles[0] = "mutated"
+	assert.Equal(t, operatorValue, source.ExpandedConfig[operatorKey])
+	assert.Equal(t, "default", source.Profiles[0])
 }
 
 func TestLookupMaps404OnlyToAbsence(t *testing.T) {
@@ -373,7 +390,7 @@ func TestLookupMaps404OnlyToAbsence(t *testing.T) {
 		assert.False(t, found)
 		assert.Zero(t, got)
 		assert.True(t, api.StatusErrorCheck(err, http.StatusForbidden))
-		assert.NotErrorIs(t, err, attest.ErrDenied)
+		require.NotErrorIs(t, err, attest.ErrDenied)
 	})
 
 	t.Run("malformed uuid is not absence", func(t *testing.T) {
@@ -387,7 +404,49 @@ func TestLookupMaps404OnlyToAbsence(t *testing.T) {
 		require.Error(t, err)
 		assert.False(t, found)
 		assert.Zero(t, got)
-		assert.ErrorIs(t, err, attest.ErrDenied)
+		require.ErrorIs(t, err, attest.ErrDenied)
+	})
+
+	t.Run("missing api name is not absence", func(t *testing.T) {
+		t.Parallel()
+		inst := vmInstance()
+		inst.Name = ""
+		fake := newFake()
+		fake.putInstance(testProject, testName, inst, "etag-1")
+		client := newTestClient(t, fake)
+		got, found, err := client.Lookup(context.Background(), testProject, testName)
+		require.Error(t, err)
+		assert.False(t, found)
+		assert.Zero(t, got)
+		require.ErrorIs(t, err, attest.ErrDenied)
+	})
+
+	t.Run("mismatched api name is not absence", func(t *testing.T) {
+		t.Parallel()
+		inst := vmInstance()
+		inst.Name = "vm-other"
+		fake := newFake()
+		fake.putInstance(testProject, testName, inst, "etag-1")
+		client := newTestClient(t, fake)
+		got, found, err := client.Lookup(context.Background(), testProject, testName)
+		require.Error(t, err)
+		assert.False(t, found)
+		assert.Zero(t, got)
+		require.ErrorIs(t, err, attest.ErrDenied)
+	})
+
+	t.Run("mismatched api project is not absence", func(t *testing.T) {
+		t.Parallel()
+		inst := vmInstance()
+		inst.Project = otherProject
+		fake := newFake()
+		fake.putInstance(testProject, testName, inst, "etag-1")
+		client := newTestClient(t, fake)
+		got, found, err := client.Lookup(context.Background(), testProject, testName)
+		require.Error(t, err)
+		assert.False(t, found)
+		assert.Zero(t, got)
+		require.ErrorIs(t, err, attest.ErrDenied)
 	})
 }
 
@@ -440,7 +499,7 @@ func TestSetNonceWritesExactKeyAndPreservesOthers(t *testing.T) {
 
 	require.NoError(t, client.SetNonce(context.Background(), testTarget(), key, testNonce))
 
-	stored, _, ok := fake.instance(testProject, testName)
+	stored, ok := fake.instance()
 	require.True(t, ok)
 	assert.Equal(t, testNonce, stored.Config[string(key)])
 	assert.Equal(t, operatorValue, stored.Config[operatorKey])
@@ -463,7 +522,7 @@ func TestUnsetNonceRemovesExactKey(t *testing.T) {
 
 	require.NoError(t, client.UnsetNonce(context.Background(), testTarget(), key))
 
-	stored, _, ok := fake.instance(testProject, testName)
+	stored, ok := fake.instance()
 	require.True(t, ok)
 	_, found := stored.Config[string(key)]
 	assert.False(t, found)
@@ -541,7 +600,7 @@ func TestSetNonceRetriesTransientStatusErrors(t *testing.T) {
 			client := newTestClient(t, fake)
 			key := testKey(t)
 			require.NoError(t, client.SetNonce(context.Background(), testTarget(), key, testNonce))
-			stored, _, ok := fake.instance(testProject, testName)
+			stored, ok := fake.instance()
 			require.True(t, ok)
 			assert.Equal(t, testNonce, stored.Config[string(key)])
 		})
@@ -569,7 +628,7 @@ func TestSetNonceRetriesETagConflictAfterRefetch(t *testing.T) {
 
 	require.NoError(t, client.SetNonce(context.Background(), testTarget(), key, testNonce))
 
-	stored, _, ok := fake.instance(testProject, testName)
+	stored, ok := fake.instance()
 	require.True(t, ok)
 	assert.Equal(t, testNonce, stored.Config[string(key)])
 	assert.Equal(t, operatorValue, stored.Config[operatorKey])
@@ -595,7 +654,7 @@ func TestSetNonceDoesNotRetryReplacementDuringConflict(t *testing.T) {
 		fake.store.updateErrs = []error{api.StatusErrorf(http.StatusPreconditionFailed, "etag mismatch")}
 		err := newTestClient(t, fake).SetNonce(context.Background(), testTarget(), testKey(t), testNonce)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, errReplacedTarget)
+		require.ErrorIs(t, err, errReplacedTarget)
 		assert.True(t, replaced)
 		assert.Len(t, fake.store.updates, 1)
 	})
@@ -612,7 +671,7 @@ func TestSetNonceDoesNotRetryReplacementDuringConflict(t *testing.T) {
 		fake.store.updateErrs = []error{api.StatusErrorf(http.StatusPreconditionFailed, "etag mismatch")}
 		err := newTestClient(t, fake).SetNonce(context.Background(), testTarget(), testKey(t), testNonce)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, errReplacedTarget)
+		require.ErrorIs(t, err, errReplacedTarget)
 		assert.Len(t, fake.store.updates, 1)
 	})
 }
@@ -625,7 +684,7 @@ func TestSetNonceUnknownOutcomeOnFailedWait(t *testing.T) {
 	fake.store.waitErrs = []error{api.StatusErrorf(http.StatusForbidden, "cannot watch %s", testNonce)}
 	err := newTestClient(t, fake).SetNonce(context.Background(), testTarget(), testKey(t), testNonce)
 	require.Error(t, err)
-	assert.Equal(t, setAction, err.Error())
+	assert.Equal(t, fmt.Sprintf("%s: %d", setAction, http.StatusForbidden), err.Error())
 	assert.NotContains(t, err.Error(), testNonce)
 	assert.True(t, api.StatusErrorCheck(err, http.StatusForbidden))
 	assert.Equal(t, 1, fake.store.waits)
@@ -636,14 +695,14 @@ func TestSetNonceOmitsNonceFromErrorText(t *testing.T) {
 
 	fake := newFake()
 	fake.putInstance(testProject, testName, vmInstance(), "etag-1")
-	injected := api.StatusErrorf(http.StatusUnauthorized, "echo %s", testNonce)
+	injected := fmt.Errorf("echo %s: %w", testNonce, context.DeadlineExceeded)
 	fake.store.updateErrs = []error{injected}
 	err := newTestClient(t, fake).SetNonce(context.Background(), testTarget(), testKey(t), testNonce)
 	require.Error(t, err)
-	assert.Equal(t, setAction, err.Error())
+	assert.Equal(t, setAction+": "+context.DeadlineExceeded.Error(), err.Error())
 	assert.NotContains(t, err.Error(), testNonce)
-	assert.True(t, api.StatusErrorCheck(err, http.StatusUnauthorized))
-	assert.ErrorIs(t, err, injected)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, injected)
 }
 
 func TestSetNoncePreservesContextDeadline(t *testing.T) {
@@ -655,7 +714,8 @@ func TestSetNoncePreservesContextDeadline(t *testing.T) {
 	cancel()
 	err := newTestClient(t, fake).SetNonce(ctx, testTarget(), testKey(t), testNonce)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, setAction+": "+context.DeadlineExceeded.Error(), err.Error())
 	assert.NotContains(t, err.Error(), testNonce)
 	assert.Empty(t, fake.store.updates)
 }
@@ -684,4 +744,69 @@ func TestCloseIdleConnectionsDoesNotDisconnect(t *testing.T) {
 	fake.store.httpErr = errors.New("missing client")
 	client.CloseIdleConnections()
 	assert.Zero(t, fake.store.disconnects)
+}
+
+func TestMatchResolvedTargetRejectsEmptyName(t *testing.T) {
+	t.Parallel()
+
+	current := vmInstance()
+	current.Name = ""
+	err := matchResolvedTarget(testTarget(), &current)
+	require.ErrorIs(t, err, errReplacedTarget)
+
+	current = vmInstance()
+	current.Project = ""
+	require.NoError(t, matchResolvedTarget(testTarget(), &current))
+}
+
+func TestWrapMutationSanitizesDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	status := api.StatusErrorf(http.StatusConflict, "echo %s", testNonce)
+	err := wrapMutation(setAction, status)
+	require.Error(t, err)
+	assert.Equal(t, fmt.Sprintf("%s: %d", setAction, http.StatusConflict), err.Error())
+	assert.NotContains(t, err.Error(), testNonce)
+	assert.True(t, api.StatusErrorCheck(err, http.StatusConflict))
+
+	err = wrapMutation(setAction, fmt.Errorf("echo %s: %w", testNonce, errReplacedTarget))
+	require.ErrorIs(t, err, errReplacedTarget)
+	assert.Equal(t, setAction+": "+errReplacedTarget.Error(), err.Error())
+	assert.NotContains(t, err.Error(), testNonce)
+
+	err = wrapMutation(unsetAction, fmt.Errorf("echo %s: %w", testNonce, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, unsetAction+": "+context.Canceled.Error(), err.Error())
+	assert.NotContains(t, err.Error(), testNonce)
+}
+
+func TestWaitDurationReturnsCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := waitDuration(ctx, time.Hour)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestNextRetryDelaySequenceAndCap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   time.Duration
+		want time.Duration
+	}{
+		{name: "first doubling", in: initialRetryDelay, want: 50 * time.Millisecond},
+		{name: "second doubling", in: 50 * time.Millisecond, want: 100 * time.Millisecond},
+		{name: "third doubling", in: 100 * time.Millisecond, want: 200 * time.Millisecond},
+		{name: "caps at max", in: 200 * time.Millisecond, want: maxRetryDelay},
+		{name: "stays capped", in: maxRetryDelay, want: maxRetryDelay},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, nextRetryDelay(tt.in))
+		})
+	}
 }
