@@ -143,3 +143,7 @@ PR #12 passed CI, GitHub Pages, and Trivy checks. The pull request remains merge
 ## 2026-08-25 15:01 — Phase 5 merged
 PR #12 was squash-merged into `master` as `83c786b3910b8856d76a1e1117dc2b4540f3b7da`.
 Next: complete PLAN.md Phase 6 user documentation and remove remaining template-facing repository metadata.
+
+## 2026-08-25 15:06 — Phase 6 contract and slices bounded
+Reviewed PLAN.md Phase 6 against the merged implementation and repository state. Three disjoint programmer slices own root repository documentation and `DELETE_ME.md` removal, the MkDocs site and docs tool metadata, and GitHub repository settings/tests. The documentation must preserve API-only identity authority, the fixed `incus` plugin name, the configuration defaults and timeout margin, Incus 7.3 `can_edit` blast radius, and the limit that v1 does not prove exclusive guest residency. The absent license and supported release remain explicit in README.md and SECURITY.md rather than being invented.
+Created `feat/phase-6-docs` plus isolated `agent/phase-6-repo-docs`, `agent/phase-6-site-docs`, and `agent/phase-6-repo-settings` worktrees.
