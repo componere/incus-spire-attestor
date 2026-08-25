@@ -28,12 +28,15 @@ func (e *agentExchange) SendPayload(_ context.Context, payload []byte) error {
 func (e *agentExchange) ReceiveChallenge(_ context.Context) ([]byte, error) {
 	msg, err := e.stream.Recv()
 	if err != nil {
+		if ctxErr := e.stream.Context().Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		return nil, err
 	}
-	if msg == nil || msg.Challenge == nil {
+	if msg == nil || msg.GetChallenge() == nil {
 		return nil, wire.ErrInvalid
 	}
-	return msg.Challenge, nil
+	return msg.GetChallenge(), nil
 }
 
 // SendResponse sends the nonce response as the challenge-response message.

@@ -28,14 +28,14 @@ import (
 )
 
 const (
-	testTrustDomain  = "example.org"
-	testInstanceName = "web-01"
-	testLocation     = "node-a"
-	testCloudInitID  = "i-abc123"
-	testProject      = "default"
-	canonicalUUID    = "550e8400-e29b-41d4-a716-446655440000"
-	attemptFill      = byte(0x11)
-	nonceFill        = byte(0x22)
+	serverTestTrustDomain = "example.org"
+	testInstanceName      = "web-01"
+	testLocation          = "node-a"
+	testCloudInitID       = "i-abc123"
+	testProject           = "default"
+	canonicalUUID         = "550e8400-e29b-41d4-a716-446655440000"
+	attemptFill           = byte(0x11)
+	nonceFill             = byte(0x22)
 )
 
 // serverPluginEnv hosts a ServerPlugin behind plugintest clients.
@@ -71,7 +71,7 @@ func validServerConfig() config.Server {
 	}
 }
 
-func validClaims() attest.Claims {
+func serverValidClaims() attest.Claims {
 	return attest.Claims{
 		Project:     testProject,
 		Name:        attest.InstanceName(testInstanceName),
@@ -131,14 +131,14 @@ func pairValues() (attest.ConfigKey, string, attest.Nonce) {
 	return attest.NewConfigKeyFromAttemptID(id), base64.RawURLEncoding.EncodeToString(nonce[:]), nonce
 }
 
-func mustPayload(t *testing.T, claims attest.Claims) []byte {
+func mustServerPayload(t *testing.T, claims attest.Claims) []byte {
 	t.Helper()
 	raw, err := wire.EncodePayload(claims)
 	require.NoError(t, err)
 	return raw
 }
 
-func mustResponse(t *testing.T, nonce attest.Nonce) []byte {
+func mustServerResponse(t *testing.T, nonce attest.Nonce) []byte {
 	t.Helper()
 	raw, err := wire.EncodeResponse(nonce)
 	require.NoError(t, err)
@@ -205,10 +205,10 @@ func serveServerPlugin(t *testing.T, plugin *ServerPlugin) *serverPluginEnv {
 	return &serverPluginEnv{t: t, plugin: plugin, attestor: attestor, config: configClient}
 }
 
-func (e *serverPluginEnv) configure(trustDomain, hcl string) error {
+func (e *serverPluginEnv) configure(hcl string) error {
 	e.t.Helper()
 	_, err := e.config.Configure(e.t.Context(), &configv1.ConfigureRequest{
-		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: serverTestTrustDomain},
 		HclConfiguration:  hcl,
 	})
 	return err
@@ -232,10 +232,10 @@ func (e *serverPluginEnv) attest(
 	if err != nil {
 		return nil, err
 	}
-	if err := stream.Send(&nodeattestorv1.AttestRequest{
+	if sendErr := stream.Send(&nodeattestorv1.AttestRequest{
 		Request: &nodeattestorv1.AttestRequest_Payload{Payload: payload},
-	}); err != nil {
-		return nil, err
+	}); sendErr != nil {
+		return nil, sendErr
 	}
 	challenge, err := stream.Recv()
 	if err != nil {
@@ -244,10 +244,10 @@ func (e *serverPluginEnv) attest(
 	if challenge.GetChallenge() == nil {
 		return nil, errors.New("expected challenge")
 	}
-	if err := stream.Send(&nodeattestorv1.AttestRequest{
+	if sendErr := stream.Send(&nodeattestorv1.AttestRequest{
 		Request: &nodeattestorv1.AttestRequest_ChallengeResponse{ChallengeResponse: response},
-	}); err != nil {
-		return nil, err
+	}); sendErr != nil {
+		return nil, sendErr
 	}
 	result, err := stream.Recv()
 	if err != nil {
@@ -260,7 +260,7 @@ func (e *serverPluginEnv) attest(
 	return attrs, nil
 }
 
-func TestValidateDoesNotBuildRuntime(t *testing.T) {
+func TestServerValidateDoesNotBuildRuntime(t *testing.T) {
 	t.Parallel()
 
 	var builds atomic.Int32
@@ -270,13 +270,13 @@ func TestValidateDoesNotBuildRuntime(t *testing.T) {
 	}}
 	env := serveServerPlugin(t, plugin)
 
-	resp, err := env.validate(testTrustDomain, validServerHCL())
+	resp, err := env.validate(serverTestTrustDomain, validServerHCL())
 	require.NoError(t, err)
 	assert.True(t, resp.GetValid())
 	assert.Empty(t, resp.GetNotes())
 	assert.Zero(t, builds.Load())
 
-	resp, err = env.validate(testTrustDomain, "")
+	resp, err = env.validate(serverTestTrustDomain, "")
 	require.NoError(t, err)
 	assert.False(t, resp.GetValid())
 	require.Len(t, resp.GetNotes(), 1)
@@ -293,6 +293,7 @@ func TestValidateGuardsNilRequestAndCore(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, resp.GetValid())
 	require.Len(t, resp.GetNotes(), 1)
+	assert.Contains(t, resp.GetNotes()[0], "request is required")
 
 	resp, err = plugin.Validate(t.Context(), &configv1.ValidateRequest{
 		HclConfiguration: validServerHCL(),
@@ -300,6 +301,7 @@ func TestValidateGuardsNilRequestAndCore(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, resp.GetValid())
 	require.Len(t, resp.GetNotes(), 1)
+	assert.Contains(t, resp.GetNotes()[0], "core configuration is required")
 }
 
 func TestAttestFailsClosedWhenUnconfigured(t *testing.T) {
@@ -321,16 +323,18 @@ func TestAttestTranslatesValidFlowAndAttributes(t *testing.T) {
 	expectHintedSuccess(t, incus, instance)
 	_, _, nonce := pairValues()
 
-	plugin := &ServerPlugin{build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
-		return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
-	}}
+	plugin := &ServerPlugin{
+		build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
+			return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
+		},
+	}
 	env := serveServerPlugin(t, plugin)
-	require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
+	require.NoError(t, env.configure(validServerHCL()))
 
-	got, err := env.attest(t.Context(), mustPayload(t, validClaims()), mustResponse(t, nonce))
+	got, err := env.attest(t.Context(), mustServerPayload(t, serverValidClaims()), mustServerResponse(t, nonce))
 	require.NoError(t, err)
 
-	want, err := attest.BuildAttributes(testTrustDomain, instance, validServerConfig().UserSelectors)
+	want, err := attest.BuildAttributes(serverTestTrustDomain, instance, validServerConfig().UserSelectors)
 	require.NoError(t, err)
 	assert.Equal(t, want.AgentID, got.GetSpiffeId())
 	assert.Equal(t, want.CanReattest, got.GetCanReattest())
@@ -365,13 +369,13 @@ func TestAttestRejectsMalformedStreamOrdering(t *testing.T) {
 				stream, err := env.attestor.Attest(t.Context())
 				require.NoError(t, err)
 				require.NoError(t, stream.Send(&nodeattestorv1.AttestRequest{
-					Request: &nodeattestorv1.AttestRequest_Payload{Payload: mustPayload(t, validClaims())},
+					Request: &nodeattestorv1.AttestRequest_Payload{Payload: mustServerPayload(t, serverValidClaims())},
 				}))
 				challenge, err := stream.Recv()
 				require.NoError(t, err)
 				require.NotNil(t, challenge.GetChallenge())
 				require.NoError(t, stream.Send(&nodeattestorv1.AttestRequest{
-					Request: &nodeattestorv1.AttestRequest_Payload{Payload: mustPayload(t, validClaims())},
+					Request: &nodeattestorv1.AttestRequest_Payload{Payload: mustServerPayload(t, serverValidClaims())},
 				}))
 				_, err = stream.Recv()
 				require.Equal(t, codes.InvalidArgument, status.Code(err))
@@ -387,11 +391,13 @@ func TestAttestRejectsMalformedStreamOrdering(t *testing.T) {
 			if tt.name == "payload as second message" {
 				expectHintedSuccess(t, incus, validInstance())
 			}
-			plugin := &ServerPlugin{build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
-				return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
-			}}
+			plugin := &ServerPlugin{
+				build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
+					return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
+				},
+			}
 			env := serveServerPlugin(t, plugin)
-			require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
+			require.NoError(t, env.configure(validServerHCL()))
 			tt.run(t, env)
 		})
 	}
@@ -406,22 +412,24 @@ func TestFailedReconfigureRetainsOldRuntime(t *testing.T) {
 	_, _, nonce := pairValues()
 
 	var builds atomic.Int32
-	plugin := &ServerPlugin{build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
-		if builds.Add(1) == 1 {
-			return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
-		}
-		return nil, errors.New("incus connect failed")
-	}}
+	plugin := &ServerPlugin{
+		build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
+			if builds.Add(1) == 1 {
+				return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
+			}
+			return nil, errors.New("incus connect failed")
+		},
+	}
 	env := serveServerPlugin(t, plugin)
-	require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
+	require.NoError(t, env.configure(validServerHCL()))
 
-	err := env.configure(testTrustDomain, validServerHCL())
+	err := env.configure(validServerHCL())
 	require.Equal(t, codes.Unknown, status.Code(err))
 	assert.Contains(t, status.Convert(err).Message(), "incus connect failed")
 
-	got, err := env.attest(t.Context(), mustPayload(t, validClaims()), mustResponse(t, nonce))
+	got, err := env.attest(t.Context(), mustServerPayload(t, serverValidClaims()), mustServerResponse(t, nonce))
 	require.NoError(t, err)
-	want, err := attest.BuildAttributes(testTrustDomain, instance, validServerConfig().UserSelectors)
+	want, err := attest.BuildAttributes(serverTestTrustDomain, instance, validServerConfig().UserSelectors)
 	require.NoError(t, err)
 	assert.Equal(t, want.AgentID, got.GetSpiffeId())
 }
@@ -438,24 +446,26 @@ func TestSuccessfulReplacementClosesSupersededIdle(t *testing.T) {
 	var firstIdle atomic.Int32
 	var secondIdle atomic.Int32
 	var builds atomic.Int32
-	plugin := &ServerPlugin{build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
-		if builds.Add(1) == 1 {
-			return newServerRuntime(t, first, cfg, trustDomain, func() { firstIdle.Add(1) }, pairReader()), nil
-		}
-		return newServerRuntime(t, second, cfg, trustDomain, func() { secondIdle.Add(1) }, pairReader()), nil
-	}}
+	plugin := &ServerPlugin{
+		build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
+			if builds.Add(1) == 1 {
+				return newServerRuntime(t, first, cfg, trustDomain, func() { firstIdle.Add(1) }, pairReader()), nil
+			}
+			return newServerRuntime(t, second, cfg, trustDomain, func() { secondIdle.Add(1) }, pairReader()), nil
+		},
+	}
 	env := serveServerPlugin(t, plugin)
-	require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
+	require.NoError(t, env.configure(validServerHCL()))
 	assert.Zero(t, firstIdle.Load())
 	assert.Zero(t, secondIdle.Load())
 
-	require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
+	require.NoError(t, env.configure(validServerHCL()))
 	assert.Equal(t, int32(1), firstIdle.Load())
 	assert.Zero(t, secondIdle.Load())
 
-	got, err := env.attest(t.Context(), mustPayload(t, validClaims()), mustResponse(t, nonce))
+	got, err := env.attest(t.Context(), mustServerPayload(t, serverValidClaims()), mustServerResponse(t, nonce))
 	require.NoError(t, err)
-	want, err := attest.BuildAttributes(testTrustDomain, instance, validServerConfig().UserSelectors)
+	want, err := attest.BuildAttributes(serverTestTrustDomain, instance, validServerConfig().UserSelectors)
 	require.NoError(t, err)
 	assert.Equal(t, want.AgentID, got.GetSpiffeId())
 	assert.Equal(t, int32(1), firstIdle.Load())
@@ -486,22 +496,26 @@ func TestInFlightAttestUsesOldSnapshotWhileNewUsesReplacement(t *testing.T) {
 	expectHintedSuccess(t, newIncus, instance)
 
 	var builds atomic.Int32
-	plugin := &ServerPlugin{build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
-		n := builds.Add(1)
-		client := oldIncus
-		domain := "old.example"
-		if n > 1 {
-			client = newIncus
-			domain = "new.example"
-		}
-		return newServerRuntime(t, client, cfg, domain, nil, pairReader()), nil
-	}}
+	plugin := &ServerPlugin{
+		build: func(_ context.Context, cfg config.Server, _ string) (*serverRuntime, error) {
+			n := builds.Add(1)
+			client := oldIncus
+			domain := "old.example"
+			if n > 1 {
+				client = newIncus
+				domain = "new.example"
+			}
+			return newServerRuntime(t, client, cfg, domain, nil, pairReader()), nil
+		},
+	}
 	env := serveServerPlugin(t, plugin)
-	require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
+	require.NoError(t, env.configure(validServerHCL()))
 
 	oldDone := make(chan attestResult, 1)
+	oldPayload := mustServerPayload(t, serverValidClaims())
+	oldResponse := mustServerResponse(t, nonce)
 	go func() {
-		attrs, err := env.attest(t.Context(), mustPayload(t, validClaims()), mustResponse(t, nonce))
+		attrs, err := env.attest(t.Context(), oldPayload, oldResponse)
 		oldDone <- attestResult{attrs: attrs, err: err}
 	}()
 
@@ -511,8 +525,8 @@ func TestInFlightAttestUsesOldSnapshotWhileNewUsesReplacement(t *testing.T) {
 		t.Fatal("timed out waiting for old snapshot lookup")
 	}
 
-	require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
-	newAttrs, err := env.attest(t.Context(), mustPayload(t, validClaims()), mustResponse(t, nonce))
+	require.NoError(t, env.configure(validServerHCL()))
+	newAttrs, err := env.attest(t.Context(), mustServerPayload(t, serverValidClaims()), mustServerResponse(t, nonce))
 	require.NoError(t, err)
 	wantNew, err := attest.BuildAttributes("new.example", instance, validServerConfig().UserSelectors)
 	require.NoError(t, err)
@@ -539,23 +553,25 @@ func TestConfigureSerializesBuilders(t *testing.T) {
 	firstEntered := make(chan struct{})
 	releaseFirst := make(chan struct{})
 
-	plugin := &ServerPlugin{build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
-		n := builds.Add(1)
-		if inFlight.Add(1) > 1 {
-			overlapped.Store(true)
-		}
-		defer inFlight.Add(-1)
-		if n == 1 {
-			close(firstEntered)
-			<-releaseFirst
-		}
-		incus := mocks.NewMockIncus(t)
-		return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
-	}}
+	plugin := &ServerPlugin{
+		build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
+			n := builds.Add(1)
+			if inFlight.Add(1) > 1 {
+				overlapped.Store(true)
+			}
+			defer inFlight.Add(-1)
+			if n == 1 {
+				close(firstEntered)
+				<-releaseFirst
+			}
+			incus := mocks.NewMockIncus(t)
+			return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
+		},
+	}
 	env := serveServerPlugin(t, plugin)
 
 	firstErr := make(chan error, 1)
-	go func() { firstErr <- env.configure(testTrustDomain, validServerHCL()) }()
+	go func() { firstErr <- env.configure(validServerHCL()) }()
 
 	select {
 	case <-firstEntered:
@@ -564,7 +580,7 @@ func TestConfigureSerializesBuilders(t *testing.T) {
 	}
 
 	secondErr := make(chan error, 1)
-	go func() { secondErr <- env.configure(testTrustDomain, validServerHCL()) }()
+	go func() { secondErr <- env.configure(validServerHCL()) }()
 
 	select {
 	case err := <-secondErr:
@@ -614,18 +630,20 @@ func TestBlockedSecondRecvReturnsOnDeadlineAndCancellation(t *testing.T) {
 			incus.EXPECT().SetNonce(mock.Anything, instance, key, stored).Return(nil).Once()
 			incus.EXPECT().UnsetNonce(mock.Anything, instance, key).Return(nil).Once()
 
-			plugin := &ServerPlugin{build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
-				return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
-			}}
+			plugin := &ServerPlugin{
+				build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
+					return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
+				},
+			}
 			env := serveServerPlugin(t, plugin)
-			require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
+			require.NoError(t, env.configure(validServerHCL()))
 
 			ctx, cancel := tt.ctx()
 			defer cancel()
 			stream, err := env.attestor.Attest(ctx)
 			require.NoError(t, err)
 			require.NoError(t, stream.Send(&nodeattestorv1.AttestRequest{
-				Request: &nodeattestorv1.AttestRequest_Payload{Payload: mustPayload(t, validClaims())},
+				Request: &nodeattestorv1.AttestRequest_Payload{Payload: mustServerPayload(t, serverValidClaims())},
 			}))
 			challenge, err := stream.Recv()
 			require.NoError(t, err)
@@ -639,6 +657,57 @@ func TestBlockedSecondRecvReturnsOnDeadlineAndCancellation(t *testing.T) {
 	}
 }
 
+func TestBlockedSecondRecvReturnsOnChallengeDeadline(t *testing.T) {
+	t.Parallel()
+
+	incus := mocks.NewMockIncus(t)
+	instance := validInstance()
+	key, stored, _ := pairValues()
+	unset := make(chan struct{})
+	incus.EXPECT().Lookup(mock.Anything, instance.Project, instance.Name).Return(instance, true, nil).Once()
+	incus.EXPECT().SetNonce(mock.Anything, instance, key, stored).Return(nil).Once()
+	incus.EXPECT().
+		UnsetNonce(mock.Anything, instance, key).
+		RunAndReturn(func(context.Context, attest.Instance, attest.ConfigKey) error {
+			close(unset)
+			return nil
+		}).
+		Once()
+
+	plugin := &ServerPlugin{
+		build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
+			return newServerRuntime(t, incus, cfg, trustDomain, nil, pairReader()), nil
+		},
+	}
+	env := serveServerPlugin(t, plugin)
+	require.NoError(t, env.configure(`
+incus_endpoint = "https://incus.example.invalid:8443"
+tls_ca_path    = "/no/such/incus/ca.pem"
+tls_cert_path  = "/no/such/incus/client.pem"
+tls_key_path   = "/no/such/incus/client-key.pem"
+projects       = ["default"]
+user_selectors = ["user.role"]
+challenge_response_timeout = "200ms"
+`))
+
+	stream, err := env.attestor.Attest(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, stream.Send(&nodeattestorv1.AttestRequest{
+		Request: &nodeattestorv1.AttestRequest_Payload{Payload: mustServerPayload(t, serverValidClaims())},
+	}))
+	challenge, err := stream.Recv()
+	require.NoError(t, err)
+	require.NotNil(t, challenge.GetChallenge())
+	_, err = stream.Recv()
+	require.Equal(t, codes.DeadlineExceeded, status.Code(err))
+
+	select {
+	case <-unset:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for UnsetNonce cleanup")
+	}
+}
+
 func TestConfigureGuardsNilRequestAndCore(t *testing.T) {
 	t.Parallel()
 
@@ -646,11 +715,13 @@ func TestConfigureGuardsNilRequestAndCore(t *testing.T) {
 
 	_, err := plugin.Configure(t.Context(), nil)
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "request is required")
 
 	_, err = plugin.Configure(t.Context(), &configv1.ConfigureRequest{
 		HclConfiguration: validServerHCL(),
 	})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "core configuration is required")
 }
 
 func TestFailedReconfigureDoesNotCloseCurrentIdle(t *testing.T) {
@@ -659,15 +730,17 @@ func TestFailedReconfigureDoesNotCloseCurrentIdle(t *testing.T) {
 	incus := mocks.NewMockIncus(t)
 	var idle atomic.Int32
 	var builds atomic.Int32
-	plugin := &ServerPlugin{build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
-		if builds.Add(1) == 1 {
-			return newServerRuntime(t, incus, cfg, trustDomain, func() { idle.Add(1) }, pairReader()), nil
-		}
-		return nil, errors.New("rebuild failed")
-	}}
+	plugin := &ServerPlugin{
+		build: func(_ context.Context, cfg config.Server, trustDomain string) (*serverRuntime, error) {
+			if builds.Add(1) == 1 {
+				return newServerRuntime(t, incus, cfg, trustDomain, func() { idle.Add(1) }, pairReader()), nil
+			}
+			return nil, errors.New("rebuild failed")
+		},
+	}
 	env := serveServerPlugin(t, plugin)
-	require.NoError(t, env.configure(testTrustDomain, validServerHCL()))
-	require.Equal(t, codes.Unknown, status.Code(env.configure(testTrustDomain, validServerHCL())))
+	require.NoError(t, env.configure(validServerHCL()))
+	require.Equal(t, codes.Unknown, status.Code(env.configure(validServerHCL())))
 	assert.Zero(t, idle.Load())
 }
 

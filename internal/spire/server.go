@@ -27,14 +27,6 @@ type ServerPlugin struct {
 	build serverRuntimeBuilder
 }
 
-// serverConfigSource is the shared Config RPC request surface.
-type serverConfigSource interface {
-	// GetCoreConfiguration returns the SPIRE core configuration.
-	GetCoreConfiguration() *configv1.CoreConfiguration
-	// GetHclConfiguration returns the plugin HCL configuration.
-	GetHclConfiguration() string
-}
-
 // NewServerPlugin constructs a ServerPlugin with the production runtime builder.
 func NewServerPlugin() *ServerPlugin {
 	return &ServerPlugin{build: buildServerRuntime}
@@ -46,13 +38,17 @@ func NewServerPlugin() *ServerPlugin {
 // runtime, read TLS files, or contact Incus. Invalid input returns a non-error
 // response with Valid=false and one diagnostic note.
 func (p *ServerPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	if _, _, err := decodeValidServer(req); err != nil {
-		return &configv1.ValidateResponse{
-			Valid: false,
-			Notes: []string{err.Error()},
-		}, nil
+	resp := &configv1.ValidateResponse{Valid: true}
+	if req == nil {
+		resp.Valid = false
+		resp.Notes = []string{fmt.Errorf("%w: request is required", config.ErrInvalid).Error()}
+		return resp, nil
 	}
-	return &configv1.ValidateResponse{Valid: true}, nil
+	if _, _, err := decodeValidServer(req); err != nil {
+		resp.Valid = false
+		resp.Notes = []string{err.Error()}
+	}
+	return resp, nil
 }
 
 // Configure decodes, validates, and publishes a complete server runtime.
@@ -62,10 +58,16 @@ func (p *ServerPlugin) Validate(_ context.Context, req *configv1.ValidateRequest
 // retirement. A failed build leaves the previously published runtime
 // unchanged. A successful swap closes idle connections on the superseded
 // runtime only.
-func (p *ServerPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *ServerPlugin) Configure(
+	ctx context.Context,
+	req *configv1.ConfigureRequest,
+) (*configv1.ConfigureResponse, error) {
 	p.configureMu.Lock()
 	defer p.configureMu.Unlock()
 
+	if req == nil {
+		return nil, mapRPCError(fmt.Errorf("%w: request is required", config.ErrInvalid))
+	}
 	cfg, trustDomain, err := decodeValidServer(req)
 	if err != nil {
 		return nil, mapRPCError(err)
@@ -91,10 +93,7 @@ func (p *ServerPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) e
 }
 
 // decodeValidServer decodes and purely validates server plugin configuration.
-func decodeValidServer(req serverConfigSource) (config.Server, string, error) {
-	if req == nil {
-		return config.Server{}, "", fmt.Errorf("%w: request is required", config.ErrInvalid)
-	}
+func decodeValidServer(req configSource) (config.Server, string, error) {
 	core := req.GetCoreConfiguration()
 	if core == nil {
 		return config.Server{}, "", fmt.Errorf("%w: core configuration is required", config.ErrInvalid)

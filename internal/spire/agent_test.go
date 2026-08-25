@@ -48,6 +48,8 @@ poll_timeout = "2s"
 	testInvalidHCL = `project = `
 	// distinctiveChallenge is malformed challenge bytes that must not leak.
 	distinctiveChallenge = `{"leak":"challenge-secret-xyz"}`
+	// distinctiveNonce is a malformed guest config value that must not leak.
+	distinctiveNonce = "secret-nonce-value-do-not-leak"
 )
 
 // agentHarness is a plugintest-served AgentPlugin and its SDK clients.
@@ -169,7 +171,11 @@ func configureAgent(t *testing.T, h *agentHarness, hcl string) {
 }
 
 // attestOnce runs one AidAttestation exchange and returns the stream messages.
-func attestOnce(t *testing.T, h *agentHarness, challenge []byte) (*nodeattestorv1.PayloadOrChallengeResponse, *nodeattestorv1.PayloadOrChallengeResponse, error) {
+func attestOnce(
+	t *testing.T,
+	h *agentHarness,
+	challenge []byte,
+) (*nodeattestorv1.PayloadOrChallengeResponse, *nodeattestorv1.PayloadOrChallengeResponse, error) {
 	t.Helper()
 	stream, err := h.attestor.AidAttestation(t.Context())
 	require.NoError(t, err)
@@ -177,8 +183,28 @@ func attestOnce(t *testing.T, h *agentHarness, challenge []byte) (*nodeattestorv
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := stream.Send(&nodeattestorv1.Challenge{Challenge: challenge}); err != nil {
-		return payload, nil, err
+	if sendErr := stream.Send(&nodeattestorv1.Challenge{Challenge: challenge}); sendErr != nil {
+		return payload, nil, sendErr
+	}
+	response, err := stream.Recv()
+	return payload, response, err
+}
+
+// attestWithoutRequire runs AidAttestation without testify assertions.
+func attestWithoutRequire(
+	h *agentHarness,
+	challenge []byte,
+) (*nodeattestorv1.PayloadOrChallengeResponse, *nodeattestorv1.PayloadOrChallengeResponse, error) {
+	stream, err := h.attestor.AidAttestation(context.Background())
+	if err != nil {
+		return nil, nil, err
+	}
+	payload, err := stream.Recv()
+	if err != nil {
+		return nil, nil, err
+	}
+	if sendErr := stream.Send(&nodeattestorv1.Challenge{Challenge: challenge}); sendErr != nil {
+		return payload, nil, sendErr
 	}
 	response, err := stream.Recv()
 	return payload, response, err
@@ -238,7 +264,7 @@ func TestAidAttestationFailsClosedWhenUnconfigured(t *testing.T) {
 
 	h := serveAgent(t, func(context.Context, config.Agent, string) (*agentRuntime, error) {
 		t.Fatal("unconfigured attestation must not build a runtime")
-		return nil, nil
+		return nil, errors.New("unconfigured attestation must not build a runtime")
 	})
 
 	stream, err := h.attestor.AidAttestation(t.Context())
@@ -296,11 +322,29 @@ func TestAidAttestationRejectsNilAndMalformedChallenge(t *testing.T) {
 			_, _, err := attestOnce(t, h, tt.challenge)
 			st := requireStatus(t, err, codes.InvalidArgument)
 			assert.NotContains(t, st.Message(), distinctiveChallenge)
-			assert.NotContains(t, st.Message(), testConfigKey)
-			assert.NotContains(t, st.Message(), testNonceB64)
 			evidence.AssertNotCalled(t, "ReadConfig", mock.Anything, mock.Anything)
 		})
 	}
+}
+
+// TestAidAttestationRejectsMalformedConfigValueWithoutLeakingSecrets proves the RPC status omits key and value.
+func TestAidAttestationRejectsMalformedConfigValueWithoutLeakingSecrets(t *testing.T) {
+	t.Parallel()
+
+	evidence := mocks.NewMockGuestEvidence(t)
+	evidence.EXPECT().Claims(mock.Anything).Return(validClaims(), nil).Once()
+	evidence.EXPECT().ReadConfig(mock.Anything, validKey()).Return(distinctiveNonce, true, nil).Once()
+	h := serveAgent(t, staticRuntime(&agentRuntime{
+		config:  config.Agent{PollTimeout: testPollTimeout},
+		service: mustService(t, evidence, testPollTimeout),
+	}))
+	configureAgent(t, h, testValidHCL)
+
+	_, _, err := attestOnce(t, h, mustChallenge(t))
+	st := requireStatus(t, err, codes.InvalidArgument)
+	assert.NotContains(t, st.Message(), distinctiveNonce)
+	assert.NotContains(t, st.Message(), testConfigKey)
+	assert.NotContains(t, st.Message(), testNonceB64)
 }
 
 // TestConfigureFailedRebuildKeepsOldRuntime proves a failed swap is a no-op.
@@ -371,6 +415,11 @@ func TestAidAttestationRetainsInFlightSnapshotAcrossSwap(t *testing.T) {
 
 	oldStarted := make(chan struct{})
 	oldRelease := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseOld := func() {
+		releaseOnce.Do(func() { close(oldRelease) })
+	}
+	defer releaseOld()
 	oldEvidence := mocks.NewMockGuestEvidence(t)
 	oldEvidence.EXPECT().Claims(mock.Anything).RunAndReturn(func(context.Context) (attest.Claims, error) {
 		close(oldStarted)
@@ -400,9 +449,10 @@ func TestAidAttestationRetainsInFlightSnapshotAcrossSwap(t *testing.T) {
 		err     error
 	}
 	oldDone := make(chan attestResult, 1)
+	challenge := mustChallenge(t)
 	go func() {
-		payload, _, err := attestOnce(t, h, mustChallenge(t))
-		oldDone <- attestResult{payload: payload, err: err}
+		payload, _, attestErr := attestWithoutRequire(h, challenge)
+		oldDone <- attestResult{payload: payload, err: attestErr}
 	}()
 
 	select {
@@ -416,7 +466,7 @@ func TestAidAttestationRetainsInFlightSnapshotAcrossSwap(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, mustPayload(t, otherClaims()), newPayload.GetPayload())
 
-	close(oldRelease)
+	releaseOld()
 	old := <-oldDone
 	require.NoError(t, old.err)
 	assert.Equal(t, mustPayload(t, validClaims()), old.payload.GetPayload())
@@ -473,17 +523,70 @@ func TestConfigureSerializesConcurrentCalls(t *testing.T) {
 func TestConfigureRejectsInvalidInputWithoutPublishing(t *testing.T) {
 	t.Parallel()
 
-	var built atomic.Bool
-	h := serveAgent(t, func(context.Context, config.Agent, string) (*agentRuntime, error) {
-		built.Store(true)
-		return nil, errors.New("builder must not run for invalid Configure")
-	})
+	tests := []struct {
+		name string
+		req  *configv1.ConfigureRequest
+	}{
+		{
+			name: "invalid HCL",
+			req: &configv1.ConfigureRequest{
+				CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: testTrustDomain},
+				HclConfiguration:  testInvalidHCL,
+			},
+		},
+		{
+			name: "empty trust domain",
+			req: &configv1.ConfigureRequest{
+				CoreConfiguration: &configv1.CoreConfiguration{},
+				HclConfiguration:  testValidHCL,
+			},
+		},
+		{
+			name: "nil core with valid HCL",
+			req: &configv1.ConfigureRequest{
+				HclConfiguration: testValidHCL,
+			},
+		},
+	}
 
-	_, err := h.cfg.Configure(t.Context(), &configv1.ConfigureRequest{
-		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: testTrustDomain},
-		HclConfiguration:  testInvalidHCL,
-	})
-	requireStatus(t, err, codes.InvalidArgument)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var built atomic.Bool
+			h := serveAgent(t, func(context.Context, config.Agent, string) (*agentRuntime, error) {
+				built.Store(true)
+				return nil, errors.New("builder must not run for invalid Configure")
+			})
+
+			_, err := h.cfg.Configure(t.Context(), tt.req)
+			requireStatus(t, err, codes.InvalidArgument)
+			assert.False(t, built.Load())
+			assert.Nil(t, h.plugin.runtime.Load())
+		})
+	}
+}
+
+// TestConfigureAndValidateGuardNilRequest proves a concrete nil request is not boxed.
+func TestConfigureAndValidateGuardNilRequest(t *testing.T) {
+	t.Parallel()
+
+	var built atomic.Bool
+	plugin := &AgentPlugin{build: func(context.Context, config.Agent, string) (*agentRuntime, error) {
+		built.Store(true)
+		return nil, errors.New("builder must not run for a nil request")
+	}}
+
+	resp, err := plugin.Validate(t.Context(), nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.False(t, resp.GetValid())
+	require.Len(t, resp.GetNotes(), 1)
+	assert.Contains(t, resp.GetNotes()[0], "request is required")
+
+	_, err = plugin.Configure(t.Context(), nil)
+	st := requireStatus(t, err, codes.InvalidArgument)
+	assert.Contains(t, st.Message(), "request is required")
 	assert.False(t, built.Load())
-	assert.Nil(t, h.plugin.runtime.Load())
+	assert.Nil(t, plugin.runtime.Load())
 }

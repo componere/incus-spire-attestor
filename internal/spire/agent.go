@@ -27,8 +27,8 @@ type AgentPlugin struct {
 	build agentRuntimeBuilder
 }
 
-// agentConfigSource is the shared Config RPC request surface.
-type agentConfigSource interface {
+// configSource is the shared Config RPC request surface.
+type configSource interface {
 	// GetCoreConfiguration returns the SPIRE core configuration.
 	GetCoreConfiguration() *configv1.CoreConfiguration
 	// GetHclConfiguration returns the plugin HCL configuration.
@@ -46,13 +46,17 @@ func NewAgentPlugin() *AgentPlugin {
 // runtime, read files, or contact Incus. Invalid input returns a non-error
 // response with Valid=false and one diagnostic note.
 func (p *AgentPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	if _, _, err := decodeValidAgent(req); err != nil {
-		return &configv1.ValidateResponse{
-			Valid: false,
-			Notes: []string{err.Error()},
-		}, nil
+	resp := &configv1.ValidateResponse{Valid: true}
+	if req == nil {
+		resp.Valid = false
+		resp.Notes = []string{fmt.Errorf("%w: request is required", config.ErrInvalid).Error()}
+		return resp, nil
 	}
-	return &configv1.ValidateResponse{Valid: true}, nil
+	if _, _, err := decodeValidAgent(req); err != nil {
+		resp.Valid = false
+		resp.Notes = []string{err.Error()}
+	}
+	return resp, nil
 }
 
 // Configure decodes, validates, and publishes a complete agent runtime.
@@ -60,10 +64,15 @@ func (p *AgentPlugin) Validate(_ context.Context, req *configv1.ValidateRequest)
 // Configure acquires the plugin mutex at entry and holds it through decode,
 // validation, runtime construction, and the atomic swap. A failed build
 // leaves the previously published runtime unchanged.
-func (p *AgentPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *AgentPlugin) Configure(
+	ctx context.Context,
+	req *configv1.ConfigureRequest,
+) (*configv1.ConfigureResponse, error) {
 	p.configureMu.Lock()
 	defer p.configureMu.Unlock()
-
+	if req == nil {
+		return nil, mapRPCError(fmt.Errorf("%w: request is required", config.ErrInvalid))
+	}
 	cfg, trustDomain, err := decodeValidAgent(req)
 	if err != nil {
 		return nil, mapRPCError(err)
@@ -86,10 +95,7 @@ func (p *AgentPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttes
 }
 
 // decodeValidAgent decodes and purely validates agent plugin configuration.
-func decodeValidAgent(req agentConfigSource) (config.Agent, string, error) {
-	if req == nil {
-		return config.Agent{}, "", fmt.Errorf("%w: request is required", config.ErrInvalid)
-	}
+func decodeValidAgent(req configSource) (config.Agent, string, error) {
 	core := req.GetCoreConfiguration()
 	if core == nil {
 		return config.Agent{}, "", fmt.Errorf("%w: core configuration is required", config.ErrInvalid)
