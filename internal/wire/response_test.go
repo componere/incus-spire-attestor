@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/componere/incus-spire-attestor/internal/attest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/componere/incus-spire-attestor/internal/attest"
 )
 
 const (
@@ -76,7 +77,16 @@ func TestParseNonceRejectsInvalidEncodings(t *testing.T) {
 
 			got, err := ParseNonce(tt.input)
 			assertInvalid(t, err)
-			assertNoSecret(t, err, tt.input, testNonceRawURL, paddedNonceRawURL, stdNonceEncoding, nonce15RawURL, nonce17RawURL)
+			assertNoSecret(
+				t,
+				err,
+				tt.input,
+				testNonceRawURL,
+				paddedNonceRawURL,
+				stdNonceEncoding,
+				nonce15RawURL,
+				nonce17RawURL,
+			)
 			assert.Equal(t, attest.Nonce{}, got)
 		})
 	}
@@ -199,12 +209,21 @@ func TestDecodeResponseRejectsMissingAndEmptyFields(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{name: "missing version", raw: `{"response":{"type":"incus-config-nonce","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`},
+		{
+			name: "missing version",
+			raw:  `{"response":{"type":"incus-config-nonce","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`,
+		},
 		{name: "missing response", raw: `{"version":1}`},
 		{name: "null response", raw: `{"version":1,"response":null}`},
 		{name: "missing type", raw: `{"version":1,"response":{"version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`},
-		{name: "empty type", raw: `{"version":1,"response":{"type":"","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`},
-		{name: "missing body version", raw: `{"version":1,"response":{"type":"incus-config-nonce","data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`},
+		{
+			name: "empty type",
+			raw:  `{"version":1,"response":{"type":"","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`,
+		},
+		{
+			name: "missing body version",
+			raw:  `{"version":1,"response":{"type":"incus-config-nonce","data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`,
+		},
 		{name: "missing data", raw: `{"version":1,"response":{"type":"incus-config-nonce","version":1}}`},
 		{name: "null data", raw: `{"version":1,"response":{"type":"incus-config-nonce","version":1,"data":null}}`},
 		{name: "missing nonce", raw: `{"version":1,"response":{"type":"incus-config-nonce","version":1,"data":{}}}`},
@@ -229,10 +248,22 @@ func TestDecodeResponseRejectsWrongTypeAndVersions(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{name: "wrong response type", raw: `{"version":1,"response":{"type":"incus-guest-claims","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`},
-		{name: "unknown response type", raw: `{"version":1,"response":{"type":"tpm-ek-certificate","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`},
-		{name: "outer version 2", raw: `{"version":2,"response":{"type":"incus-config-nonce","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`},
-		{name: "body version 2", raw: `{"version":1,"response":{"type":"incus-config-nonce","version":2,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`},
+		{
+			name: "wrong response type",
+			raw:  `{"version":1,"response":{"type":"incus-guest-claims","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`,
+		},
+		{
+			name: "unknown response type",
+			raw:  `{"version":1,"response":{"type":"tpm-ek-certificate","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`,
+		},
+		{
+			name: "outer version 2",
+			raw:  `{"version":2,"response":{"type":"incus-config-nonce","version":1,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`,
+		},
+		{
+			name: "body version 2",
+			raw:  `{"version":1,"response":{"type":"incus-config-nonce","version":2,"data":{"nonce":"3q2-7wARIjNEVWZ3iJmquw"}}}`,
+		},
 	}
 
 	for _, tt := range tests {

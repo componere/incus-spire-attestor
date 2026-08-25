@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/componere/incus-spire-attestor/internal/attest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/componere/incus-spire-attestor/internal/attest"
 )
 
 func TestDecodeChallengeGoldenRoundTrip(t *testing.T) {
@@ -172,16 +173,34 @@ func TestDecodeChallengeRejectsMissingAndEmptyFields(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{name: "missing version", raw: `{"challenge":{"type":"incus-config-nonce","version":1,"data":{"config_key":"user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"}}}`},
+		{
+			name: "missing version",
+			raw:  `{"challenge":{"type":"incus-config-nonce","version":1,"data":{"config_key":"user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"}}}`,
+		},
 		{name: "missing challenge", raw: `{"version":1}`},
 		{name: "null challenge", raw: `{"version":1,"challenge":null}`},
-		{name: "missing type", raw: `{"version":1,"challenge":{"version":1,"data":{"config_key":"user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"}}}`},
-		{name: "empty type", raw: `{"version":1,"challenge":{"type":"","version":1,"data":{"config_key":"user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"}}}`},
-		{name: "missing body version", raw: `{"version":1,"challenge":{"type":"incus-config-nonce","data":{"config_key":"user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"}}}`},
+		{
+			name: "missing type",
+			raw:  `{"version":1,"challenge":{"version":1,"data":{"config_key":"user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"}}}`,
+		},
+		{
+			name: "empty type",
+			raw:  `{"version":1,"challenge":{"type":"","version":1,"data":{"config_key":"user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"}}}`,
+		},
+		{
+			name: "missing body version",
+			raw:  `{"version":1,"challenge":{"type":"incus-config-nonce","data":{"config_key":"user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"}}}`,
+		},
 		{name: "missing data", raw: `{"version":1,"challenge":{"type":"incus-config-nonce","version":1}}`},
 		{name: "null data", raw: `{"version":1,"challenge":{"type":"incus-config-nonce","version":1,"data":null}}`},
-		{name: "missing config_key", raw: `{"version":1,"challenge":{"type":"incus-config-nonce","version":1,"data":{}}}`},
-		{name: "empty config_key", raw: `{"version":1,"challenge":{"type":"incus-config-nonce","version":1,"data":{"config_key":""}}}`},
+		{
+			name: "missing config_key",
+			raw:  `{"version":1,"challenge":{"type":"incus-config-nonce","version":1,"data":{}}}`,
+		},
+		{
+			name: "empty config_key",
+			raw:  `{"version":1,"challenge":{"type":"incus-config-nonce","version":1,"data":{"config_key":""}}}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -231,8 +250,8 @@ func TestDecodeChallengeRejectsWrongTypeAndVersions(t *testing.T) {
 
 			got, err := DecodeChallenge([]byte(tt.raw))
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tt.want)
-			assert.NotErrorIs(t, err, attest.ErrDenied)
+			require.ErrorIs(t, err, tt.want)
+			require.NotErrorIs(t, err, attest.ErrDenied)
 			assert.Zero(t, got)
 		})
 	}

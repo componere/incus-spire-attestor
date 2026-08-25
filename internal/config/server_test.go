@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,17 +12,17 @@ import (
 )
 
 const (
-	testEndpoint                    = "https://incus.example.invalid:8443"
-	testTLSCAPath                   = "/no/such/incus/ca.pem"
-	testTLSCertPath                 = "/no/such/incus/client.pem"
-	testTLSKeyPath                  = "/no/such/incus/client-key.pem"
-	reservedNonceExact              = "user.spire.attestor.nonce"
-	reservedNoncePrefix             = "user.spire.attestor.nonce."
-	defaultIncusTimeout             = 5 * time.Second
-	defaultChallengeResponseTimeout = 10 * time.Second
-	defaultCleanupTimeout           = 5 * time.Second
-	maxProjects                     = 32
-	maxUserSelectors                = 32
+	testEndpoint                        = "https://incus.example.invalid:8443"
+	testTLSCAPath                       = "/no/such/incus/ca.pem"
+	testTLSCertPath                     = "/no/such/incus/client.pem"
+	testTLSKeyPath                      = "/no/such/incus/client-key.pem"
+	reservedNonceExact                  = "user.spire.attestor.nonce"
+	testReservedNoncePrefix             = "user.spire.attestor.nonce."
+	testDefaultIncusTimeout             = 5 * time.Second
+	testDefaultChallengeResponseTimeout = 10 * time.Second
+	testDefaultCleanupTimeout           = 5 * time.Second
+	testMaxProjects                     = 32
+	testMaxUserSelectors                = 32
 )
 
 func validServer() Server {
@@ -33,9 +32,9 @@ func validServer() Server {
 		TLSCertPath:              testTLSCertPath,
 		TLSKeyPath:               testTLSKeyPath,
 		Projects:                 []attest.ProjectName{testProject},
-		IncusTimeout:             defaultIncusTimeout,
-		ChallengeResponseTimeout: defaultChallengeResponseTimeout,
-		CleanupTimeout:           defaultCleanupTimeout,
+		IncusTimeout:             testDefaultIncusTimeout,
+		ChallengeResponseTimeout: testDefaultChallengeResponseTimeout,
+		CleanupTimeout:           testDefaultCleanupTimeout,
 	}
 }
 
@@ -67,9 +66,9 @@ func TestDecodeServerAppliesDefaultsAndExplicitValues(t *testing.T) {
 			name: "empty HCL uses duration defaults and leaves required fields empty",
 			src:  "",
 			want: Server{
-				IncusTimeout:             defaultIncusTimeout,
-				ChallengeResponseTimeout: defaultChallengeResponseTimeout,
-				CleanupTimeout:           defaultCleanupTimeout,
+				IncusTimeout:             testDefaultIncusTimeout,
+				ChallengeResponseTimeout: testDefaultChallengeResponseTimeout,
+				CleanupTimeout:           testDefaultCleanupTimeout,
 			},
 		},
 		{
@@ -112,9 +111,9 @@ projects       = ["default"]
 				TLSCertPath:              testTLSCertPath,
 				TLSKeyPath:               testTLSKeyPath,
 				Projects:                 []attest.ProjectName{testProject},
-				IncusTimeout:             defaultIncusTimeout,
-				ChallengeResponseTimeout: defaultChallengeResponseTimeout,
-				CleanupTimeout:           defaultCleanupTimeout,
+				IncusTimeout:             testDefaultIncusTimeout,
+				ChallengeResponseTimeout: testDefaultChallengeResponseTimeout,
+				CleanupTimeout:           testDefaultCleanupTimeout,
 			},
 		},
 		{
@@ -196,7 +195,12 @@ unexpected     = true
 
 			got, err := DecodeServer(tt.src)
 			require.Error(t, err, "invalid server HCL must be rejected")
-			assert.ErrorIs(t, err, ErrInvalid, "decode syntax, type, unknown-field, and duration failures must wrap ErrInvalid")
+			require.ErrorIs(
+				t,
+				err,
+				ErrInvalid,
+				"decode syntax, type, unknown-field, and duration failures must wrap ErrInvalid",
+			)
 			assert.Zero(t, got, "rejected server config must be the zero value")
 		})
 	}
@@ -235,14 +239,14 @@ func TestValidateServerAcceptsValidConfiguration(t *testing.T) {
 		{
 			name: "32 distinct projects",
 			mutate: func(cfg Server) Server {
-				cfg.Projects = numberedProjects(maxProjects)
+				cfg.Projects = numberedProjects(testMaxProjects)
 				return cfg
 			},
 		},
 		{
 			name: "32 distinct user selectors",
 			mutate: func(cfg Server) Server {
-				cfg.UserSelectors = numberedUserSelectors(maxUserSelectors)
+				cfg.UserSelectors = numberedUserSelectors(testMaxUserSelectors)
 				return cfg
 			},
 		},
@@ -416,8 +420,8 @@ func TestValidateServerEnforcesProjectCountAndUniqueness(t *testing.T) {
 	}{
 		{name: "0 projects", projects: nil, wantErr: true},
 		{name: "1 project", projects: numberedProjects(1), wantErr: false},
-		{name: "32 distinct projects", projects: numberedProjects(maxProjects), wantErr: false},
-		{name: "33 distinct projects", projects: numberedProjects(maxProjects + 1), wantErr: true},
+		{name: "32 distinct projects", projects: numberedProjects(testMaxProjects), wantErr: false},
+		{name: "33 distinct projects", projects: numberedProjects(testMaxProjects + 1), wantErr: true},
 		{name: "empty project name", projects: []attest.ProjectName{testProject, ""}, wantErr: true},
 		{name: "duplicate projects", projects: []attest.ProjectName{testProject, testProject}, wantErr: true},
 	}
@@ -448,18 +452,18 @@ func TestValidateServerEnforcesSelectorRules(t *testing.T) {
 		wantErr   bool
 	}{
 		{name: "0 selectors", selectors: nil, wantErr: false},
-		{name: "32 distinct user selectors", selectors: numberedUserSelectors(maxUserSelectors), wantErr: false},
-		{name: "33 distinct user selectors", selectors: numberedUserSelectors(maxUserSelectors + 1), wantErr: true},
+		{name: "32 distinct user selectors", selectors: numberedUserSelectors(testMaxUserSelectors), wantErr: false},
+		{name: "33 distinct user selectors", selectors: numberedUserSelectors(testMaxUserSelectors + 1), wantErr: true},
 		{name: "duplicate selectors", selectors: []string{"user.role", "user.role"}, wantErr: true},
 		{name: "empty selector", selectors: []string{"user.role", ""}, wantErr: true},
 		{name: "non-user selector", selectors: []string{"volatile.uuid"}, wantErr: true},
 		{name: "bare user selector", selectors: []string{"user"}, wantErr: true},
 		{name: "bare user prefix", selectors: []string{"user."}, wantErr: true},
 		{name: "exact reserved nonce key", selectors: []string{reservedNonceExact}, wantErr: true},
-		{name: "reserved nonce prefix only", selectors: []string{reservedNoncePrefix}, wantErr: true},
+		{name: "reserved nonce prefix only", selectors: []string{testReservedNoncePrefix}, wantErr: true},
 		{
 			name:      "reserved nonce prefix with suffix",
-			selectors: []string{reservedNoncePrefix + "0123456789abcdef0123456789abcdef"},
+			selectors: []string{testReservedNoncePrefix + "0123456789abcdef0123456789abcdef"},
 			wantErr:   true,
 		},
 		{
@@ -495,7 +499,7 @@ func TestValidateServerJoinsMultipleViolations(t *testing.T) {
 		TLSCertPath:              "",
 		TLSKeyPath:               "",
 		Projects:                 nil,
-		UserSelectors:            []string{reservedNonceExact, reservedNoncePrefix + "aa", "volatile.uuid"},
+		UserSelectors:            []string{reservedNonceExact, testReservedNoncePrefix + "aa", "volatile.uuid"},
 		IncusTimeout:             0,
 		ChallengeResponseTimeout: 0,
 		CleanupTimeout:           0,
@@ -503,7 +507,7 @@ func TestValidateServerJoinsMultipleViolations(t *testing.T) {
 
 	err := ValidateServer(cfg, "")
 	require.Error(t, err, "multi-violation server configuration must be rejected")
-	assert.ErrorIs(t, err, ErrInvalid)
+	require.ErrorIs(t, err, ErrInvalid)
 
 	message := err.Error()
 	for _, detail := range []string{
@@ -516,8 +520,8 @@ func TestValidateServerJoinsMultipleViolations(t *testing.T) {
 		"incus_timeout",
 		"challenge_response_timeout",
 		"cleanup_timeout",
-		"trust domain",
+		"trust_domain",
 	} {
-		assert.Truef(t, strings.Contains(message, detail), "joined error must retain %q; got %q", detail, message)
+		assert.Containsf(t, message, detail, "joined error must retain %q; got %q", detail, message)
 	}
 }

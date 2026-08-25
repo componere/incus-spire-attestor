@@ -73,8 +73,8 @@ func decodeRaw(raw []byte) (json.RawMessage, error) {
 	if err := dec.Decode(&msg); err != nil {
 		return nil, wrapJSONError(err)
 	}
-	if dec.More() {
-		return nil, fmt.Errorf("%w: trailing JSON data", ErrInvalid)
+	if err := requireJSONEOF(dec); err != nil {
+		return nil, err
 	}
 	if err := rejectDuplicateNames(msg); err != nil {
 		return nil, err
@@ -89,10 +89,20 @@ func decodeStrict(raw []byte, dest any) error {
 	if err := dec.Decode(dest); err != nil {
 		return wrapJSONError(err)
 	}
-	if dec.More() {
-		return fmt.Errorf("%w: trailing JSON data", ErrInvalid)
+	if err := requireJSONEOF(dec); err != nil {
+		return err
 	}
 	return nil
+}
+
+// requireJSONEOF rejects any second top-level JSON value or trailing garbage.
+func requireJSONEOF(dec *json.Decoder) error {
+	var extra json.RawMessage
+	err := dec.Decode(&extra)
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	return fmt.Errorf("%w: trailing JSON data", ErrInvalid)
 }
 
 // decodeTypedObject strictly decodes a type/version wrapper and returns its data.
@@ -108,7 +118,7 @@ func decodeTypedObject(raw json.RawMessage, wantType, what string) (json.RawMess
 	if err := requireType(obj.Type, wantType, what); err != nil {
 		return nil, err
 	}
-	if err := requireVersion(obj.Version, 1, what); err != nil {
+	if err := requireVersion(obj.Version, what); err != nil {
 		return nil, err
 	}
 	if len(obj.Data) == 0 {
@@ -117,12 +127,12 @@ func decodeTypedObject(raw json.RawMessage, wantType, what string) (json.RawMess
 	return obj.Data, nil
 }
 
-// requireVersion reports a missing version as invalid and any other value as unsupported.
-func requireVersion(got *int, want int, what string) error {
+// requireVersion reports a missing version as invalid and any non-v1 value as unsupported.
+func requireVersion(got *int, what string) error {
 	if got == nil {
 		return fmt.Errorf("%w: %s version is required", ErrInvalid, what)
 	}
-	if *got != want {
+	if *got != 1 {
 		return fmt.Errorf("%w: %s version %d", ErrUnsupported, what, *got)
 	}
 	return nil
@@ -153,8 +163,8 @@ func rejectDuplicateNames(raw json.RawMessage) error {
 	if err := rejectDuplicateValue(dec); err != nil {
 		return err
 	}
-	if dec.More() {
-		return fmt.Errorf("%w: trailing JSON data", ErrInvalid)
+	if err := requireJSONEOF(dec); err != nil {
+		return err
 	}
 	return nil
 }
@@ -173,41 +183,51 @@ func rejectDuplicateValue(dec *json.Decoder) error {
 
 	switch delim {
 	case '{':
-		seen := make(map[string]struct{})
-		for dec.More() {
-			keyTok, err := dec.Token()
-			if err != nil {
-				return wrapJSONError(err)
-			}
-			key, ok := keyTok.(string)
-			if !ok {
-				return fmt.Errorf("%w: object key is not a string", ErrInvalid)
-			}
-			if _, exists := seen[key]; exists {
-				return fmt.Errorf("%w: duplicate field %q", ErrInvalid, key)
-			}
-			seen[key] = struct{}{}
-			if err := rejectDuplicateValue(dec); err != nil {
-				return err
-			}
-		}
-		if _, err := dec.Token(); err != nil {
-			return wrapJSONError(err)
-		}
-		return nil
+		return rejectDuplicateObject(dec)
 	case '[':
-		for dec.More() {
-			if err := rejectDuplicateValue(dec); err != nil {
-				return err
-			}
-		}
-		if _, err := dec.Token(); err != nil {
-			return wrapJSONError(err)
-		}
-		return nil
+		return rejectDuplicateArray(dec)
 	default:
 		return fmt.Errorf("%w: invalid JSON delimiter", ErrInvalid)
 	}
+}
+
+// rejectDuplicateObject walks an open JSON object and rejects repeated member names.
+func rejectDuplicateObject(dec *json.Decoder) error {
+	seen := make(map[string]struct{})
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return wrapJSONError(err)
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return fmt.Errorf("%w: object key is not a string", ErrInvalid)
+		}
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("%w: duplicate field %q", ErrInvalid, key)
+		}
+		seen[key] = struct{}{}
+		if err := rejectDuplicateValue(dec); err != nil {
+			return err
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return wrapJSONError(err)
+	}
+	return nil
+}
+
+// rejectDuplicateArray walks an open JSON array and checks every element.
+func rejectDuplicateArray(dec *json.Decoder) error {
+	for dec.More() {
+		if err := rejectDuplicateValue(dec); err != nil {
+			return err
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return wrapJSONError(err)
+	}
+	return nil
 }
 
 // wrapInvalid translates a domain error into ErrInvalid without wrapping its class.
@@ -241,9 +261,8 @@ func wrapJSONError(err error) error {
 	}
 
 	const unknownPrefix = "json: unknown field "
-	msg := err.Error()
-	if strings.HasPrefix(msg, unknownPrefix) {
-		return fmt.Errorf("%w: unknown field %s", ErrInvalid, strings.TrimPrefix(msg, unknownPrefix))
+	if field, ok := strings.CutPrefix(err.Error(), unknownPrefix); ok {
+		return fmt.Errorf("%w: unknown field %s", ErrInvalid, field)
 	}
 	return fmt.Errorf("%w: invalid JSON", ErrInvalid)
 }

@@ -78,7 +78,7 @@ func requirePositive(value time.Duration, attr string) error {
 func validateProjects(projects []attest.ProjectName) error {
 	var errs []error
 	if len(projects) == 0 {
-		errs = append(errs, fmt.Errorf("%w: at least one project is required", ErrInvalid))
+		errs = append(errs, fmt.Errorf("%w: projects must contain at least one project", ErrInvalid))
 	}
 	if len(projects) > maxProjects {
 		errs = append(errs, fmt.Errorf("%w: projects count %d exceeds %d", ErrInvalid, len(projects), maxProjects))
@@ -102,7 +102,10 @@ func validateProjects(projects []attest.ProjectName) error {
 func validateUserSelectors(keys []string) error {
 	var errs []error
 	if len(keys) > maxUserSelectors {
-		errs = append(errs, fmt.Errorf("%w: user_selectors count %d exceeds %d", ErrInvalid, len(keys), maxUserSelectors))
+		errs = append(
+			errs,
+			fmt.Errorf("%w: user_selectors count %d exceeds %d", ErrInvalid, len(keys), maxUserSelectors),
+		)
 	}
 	seen := make(map[string]struct{}, len(keys))
 	for _, key := range keys {
@@ -122,13 +125,13 @@ func validateUserSelectors(keys []string) error {
 // validateUserSelector reports whether key is an allowed user selector.
 func validateUserSelector(key string) error {
 	if key == "" {
-		return fmt.Errorf("%w: user selector must be nonempty", ErrInvalid)
+		return fmt.Errorf("%w: user_selectors entry must be nonempty", ErrInvalid)
 	}
 	if !strings.HasPrefix(key, userKeyPrefix) || key == userKeyPrefix {
-		return fmt.Errorf("%w: user selector %q must be a user.* key", ErrInvalid, key)
+		return fmt.Errorf("%w: user_selectors entry %q must be a user.* key", ErrInvalid, key)
 	}
 	if key == reservedNonceKey || strings.HasPrefix(key, reservedNoncePrefix) {
-		return fmt.Errorf("%w: user selector %q uses the reserved nonce namespace", ErrInvalid, key)
+		return fmt.Errorf("%w: user_selectors entry %q uses the reserved nonce namespace", ErrInvalid, key)
 	}
 	return nil
 }

@@ -76,7 +76,11 @@ func DecodeServer(src string) (Server, error) {
 	if err != nil {
 		return Server{}, err
 	}
-	challengeTimeout, err := parseOptionalDuration(raw.ChallengeResponseTimeout, defaultChallengeResponseTimeout, "challenge_response_timeout")
+	challengeTimeout, err := parseOptionalDuration(
+		raw.ChallengeResponseTimeout,
+		defaultChallengeResponseTimeout,
+		"challenge_response_timeout",
+	)
 	if err != nil {
 		return Server{}, err
 	}
@@ -84,9 +88,12 @@ func DecodeServer(src string) (Server, error) {
 	if err != nil {
 		return Server{}, err
 	}
-	projects := make([]attest.ProjectName, len(raw.Projects))
-	for i, name := range raw.Projects {
-		projects[i] = attest.ProjectName(name)
+	var projects []attest.ProjectName
+	if raw.Projects != nil {
+		projects = make([]attest.ProjectName, len(raw.Projects))
+		for i, name := range raw.Projects {
+			projects[i] = attest.ProjectName(name)
+		}
 	}
 	return Server{
 		IncusEndpoint:            optionalString(raw.IncusEndpoint),

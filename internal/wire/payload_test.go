@@ -5,9 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/componere/incus-spire-attestor/internal/attest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/componere/incus-spire-attestor/internal/attest"
 )
 
 func TestDecodePayloadGoldenRoundTrip(t *testing.T) {
@@ -92,7 +93,20 @@ func TestDecodePayloadAcceptsContainerType(t *testing.T) {
 	assert.NotErrorIs(t, err, attest.ErrDenied)
 }
 
-func TestEncodePayloadRejectsDomainValidationFailures(t *testing.T) {
+func TestEncodePayloadAcceptsContainerType(t *testing.T) {
+	t.Parallel()
+
+	claims := validClaims()
+	claims.Type = "container"
+
+	raw, err := EncodePayload(claims)
+	require.NoError(t, err, "wire must preserve container type so domain can deny later")
+	got, err := DecodePayload(raw)
+	require.NoError(t, err)
+	assert.Equal(t, attest.InstanceType("container"), got.Type)
+}
+
+func TestEncodePayloadRejectsStructuralValidationFailures(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -103,7 +117,6 @@ func TestEncodePayloadRejectsDomainValidationFailures(t *testing.T) {
 		{name: "missing location", mutate: func(c *attest.Claims) { c.Location = "" }},
 		{name: "missing cloud-init id", mutate: func(c *attest.Claims) { c.CloudInitID = "" }},
 		{name: "missing instance type", mutate: func(c *attest.Claims) { c.Type = "" }},
-		{name: "container instance type", mutate: func(c *attest.Claims) { c.Type = "container" }},
 		{name: "invalid uuid", mutate: func(c *attest.Claims) { c.UUID = "not-a-uuid" }},
 	}
 
@@ -219,26 +232,77 @@ func TestDecodePayloadRejectsMissingAndEmptyFields(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{name: "missing version", raw: `{"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
+		{
+			name: "missing version",
+			raw:  `{"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
 		{name: "missing evidence", raw: `{"version":1}`},
 		{name: "null evidence", raw: `{"version":1,"evidence":null}`},
-		{name: "missing item type", raw: `{"version":1,"evidence":[{"version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "empty item type", raw: `{"version":1,"evidence":[{"type":"","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "missing item version", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
+		{
+			name: "missing item type",
+			raw:  `{"version":1,"evidence":[{"version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "empty item type",
+			raw:  `{"version":1,"evidence":[{"type":"","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "missing item version",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
 		{name: "missing item data", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1}]}`},
-		{name: "null item data", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":null}]}`},
-		{name: "missing instance_name", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "empty instance_name", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "missing instance_type", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "empty instance_type", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "missing uuid", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "empty uuid", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "invalid uuid", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"not-a-uuid","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "missing location", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "empty location", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "missing cloud_init_id", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01"}}]}`},
-		{name: "empty cloud_init_id", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":""}}]}`},
-		{name: "present empty project", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
+		{
+			name: "null item data",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":null}]}`,
+		},
+		{
+			name: "missing instance_name",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "empty instance_name",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "missing instance_type",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "empty instance_type",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "missing uuid",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "empty uuid",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "invalid uuid",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"not-a-uuid","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "missing location",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "empty location",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "missing cloud_init_id",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01"}}]}`,
+		},
+		{
+			name: "empty cloud_init_id",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":""}}]}`,
+		},
+		{
+			name: "present empty project",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -264,8 +328,16 @@ func TestDecodePayloadRejectsEvidenceCountAndType(t *testing.T) {
 	}{
 		{name: "zero evidence items", raw: `{"version":1,"evidence":[]}`, want: ErrInvalid},
 		{name: "two evidence items", raw: `{"version":1,"evidence":[` + item + `,` + item + `]}`, want: ErrInvalid},
-		{name: "wrong evidence type", raw: `{"version":1,"evidence":[{"type":"tpm-signed-document","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`, want: ErrUnsupported},
-		{name: "challenge type as evidence", raw: `{"version":1,"evidence":[{"type":"incus-config-nonce","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`, want: ErrUnsupported},
+		{
+			name: "wrong evidence type",
+			raw:  `{"version":1,"evidence":[{"type":"tpm-signed-document","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+			want: ErrUnsupported,
+		},
+		{
+			name: "challenge type as evidence",
+			raw:  `{"version":1,"evidence":[{"type":"incus-config-nonce","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+			want: ErrUnsupported,
+		},
 	}
 
 	for _, tt := range tests {
@@ -274,8 +346,8 @@ func TestDecodePayloadRejectsEvidenceCountAndType(t *testing.T) {
 
 			got, err := DecodePayload([]byte(tt.raw))
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tt.want)
-			assert.NotErrorIs(t, err, attest.ErrDenied)
+			require.ErrorIs(t, err, tt.want)
+			require.NotErrorIs(t, err, attest.ErrDenied)
 			assert.Zero(t, got)
 		})
 	}
@@ -288,10 +360,22 @@ func TestDecodePayloadRejectsWrongVersions(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{name: "outer version 2", raw: `{"version":2,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "outer version 0", raw: `{"version":0,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "item version 2", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":2,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
-		{name: "item version 0", raw: `{"version":1,"evidence":[{"type":"incus-guest-claims","version":0,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`},
+		{
+			name: "outer version 2",
+			raw:  `{"version":2,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "outer version 0",
+			raw:  `{"version":0,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "item version 2",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":2,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
+		{
+			name: "item version 0",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":0,"data":{"instance_name":"vm-01","project":"default","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
 	}
 
 	for _, tt := range tests {

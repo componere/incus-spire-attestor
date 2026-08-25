@@ -107,7 +107,7 @@ func DecodePayload(raw []byte) (attest.Claims, error) {
 	if err := decodeMessage(raw, &env); err != nil {
 		return attest.Claims{}, err
 	}
-	if err := requireVersion(env.Version, envelopeVersion, "envelope"); err != nil {
+	if err := requireVersion(env.Version, "envelope"); err != nil {
 		return attest.Claims{}, err
 	}
 	if len(env.Evidence) == 0 {
@@ -122,9 +122,9 @@ func DecodePayload(raw []byte) (attest.Claims, error) {
 		return attest.Claims{}, fmt.Errorf("%w: evidence count %d, want 1", ErrInvalid, len(items))
 	}
 
-	dataRaw, err := decodeTypedObject(items[0], guestClaimsType, "evidence")
-	if err != nil {
-		return attest.Claims{}, err
+	dataRaw, decodeErr := decodeTypedObject(items[0], guestClaimsType, "evidence")
+	if decodeErr != nil {
+		return attest.Claims{}, decodeErr
 	}
 
 	var data decodedPayloadData

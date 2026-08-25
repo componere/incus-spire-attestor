@@ -66,13 +66,13 @@ func DecodeResponse(raw []byte) (attest.Nonce, error) {
 	if err := decodeMessage(raw, &env); err != nil {
 		return attest.Nonce{}, err
 	}
-	if err := requireVersion(env.Version, envelopeVersion, "envelope"); err != nil {
+	if err := requireVersion(env.Version, "envelope"); err != nil {
 		return attest.Nonce{}, err
 	}
 
-	dataRaw, err := decodeTypedObject(env.Response, configNonceType, "response")
-	if err != nil {
-		return attest.Nonce{}, err
+	dataRaw, decodeErr := decodeTypedObject(env.Response, configNonceType, "response")
+	if decodeErr != nil {
+		return attest.Nonce{}, decodeErr
 	}
 
 	var data decodedResponseData

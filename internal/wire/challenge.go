@@ -67,13 +67,13 @@ func DecodeChallenge(raw []byte) (attest.ConfigKey, error) {
 	if err := decodeMessage(raw, &env); err != nil {
 		return "", err
 	}
-	if err := requireVersion(env.Version, envelopeVersion, "envelope"); err != nil {
+	if err := requireVersion(env.Version, "envelope"); err != nil {
 		return "", err
 	}
 
-	dataRaw, err := decodeTypedObject(env.Challenge, configNonceType, "challenge")
-	if err != nil {
-		return "", err
+	dataRaw, decodeErr := decodeTypedObject(env.Challenge, configNonceType, "challenge")
+	if decodeErr != nil {
+		return "", decodeErr
 	}
 
 	var data decodedChallengeData

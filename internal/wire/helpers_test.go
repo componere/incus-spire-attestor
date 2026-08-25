@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/componere/incus-spire-attestor/internal/attest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/componere/incus-spire-attestor/internal/attest"
 )
 
 const (
@@ -74,18 +75,18 @@ func assertInvalid(t *testing.T, err error) {
 	t.Helper()
 
 	require.Error(t, err, "expected a wire validation failure")
-	assert.ErrorIs(t, err, ErrInvalid, "structural and domain-translated failures must be ErrInvalid")
-	assert.NotErrorIs(t, err, ErrUnsupported, "invalid input must not be classified as unsupported")
-	assert.NotErrorIs(t, err, attest.ErrDenied, "wire errors must not expose attest.ErrDenied")
+	require.ErrorIs(t, err, ErrInvalid, "structural and domain-translated failures must be ErrInvalid")
+	require.NotErrorIs(t, err, ErrUnsupported, "invalid input must not be classified as unsupported")
+	require.NotErrorIs(t, err, attest.ErrDenied, "wire errors must not expose attest.ErrDenied")
 }
 
 func assertUnsupported(t *testing.T, err error) {
 	t.Helper()
 
 	require.Error(t, err, "expected an unsupported contract")
-	assert.ErrorIs(t, err, ErrUnsupported, "unknown versions and types must be ErrUnsupported")
-	assert.NotErrorIs(t, err, ErrInvalid, "unsupported contract must not be classified as invalid")
-	assert.NotErrorIs(t, err, attest.ErrDenied, "wire errors must not expose attest.ErrDenied")
+	require.ErrorIs(t, err, ErrUnsupported, "unknown versions and types must be ErrUnsupported")
+	require.NotErrorIs(t, err, ErrInvalid, "unsupported contract must not be classified as invalid")
+	require.NotErrorIs(t, err, attest.ErrDenied, "wire errors must not expose attest.ErrDenied")
 }
 
 func assertNoSecret(t *testing.T, err error, secrets ...string) {
@@ -94,6 +95,8 @@ func assertNoSecret(t *testing.T, err error, secrets ...string) {
 	require.Error(t, err)
 	msg := err.Error()
 	for _, secret := range secrets {
-		assert.NotContains(t, msg, secret, "error must not leak secret material")
+		if secret != "" {
+			assert.NotContains(t, msg, secret, "error must not leak secret material")
+		}
 	}
 }

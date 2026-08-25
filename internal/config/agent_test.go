@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	testTrustDomain    = "example.org"
-	testProject        attest.ProjectName = "default"
-	defaultPollTimeout                    = 5 * time.Second
+	testTrustDomain                           = "example.org"
+	testProject            attest.ProjectName = "default"
+	testDefaultPollTimeout                    = 5 * time.Second
 )
 
 func TestDecodeAgentAppliesDefaultsAndExplicitValues(t *testing.T) {
@@ -27,7 +27,7 @@ func TestDecodeAgentAppliesDefaultsAndExplicitValues(t *testing.T) {
 		{
 			name: "empty HCL uses default poll timeout and no project",
 			src:  "",
-			want: Agent{PollTimeout: defaultPollTimeout},
+			want: Agent{PollTimeout: testDefaultPollTimeout},
 		},
 		{
 			name: "explicit project and poll timeout",
@@ -45,7 +45,7 @@ poll_timeout = "7s"
 			src:  `project = "default"`,
 			want: Agent{
 				Project:     testProject,
-				PollTimeout: defaultPollTimeout,
+				PollTimeout: testDefaultPollTimeout,
 			},
 		},
 		{
@@ -104,7 +104,12 @@ unexpected = true
 
 			got, err := DecodeAgent(tt.src)
 			require.Error(t, err, "invalid agent HCL must be rejected")
-			assert.ErrorIs(t, err, ErrInvalid, "decode syntax, type, unknown-field, and duration failures must wrap ErrInvalid")
+			require.ErrorIs(
+				t,
+				err,
+				ErrInvalid,
+				"decode syntax, type, unknown-field, and duration failures must wrap ErrInvalid",
+			)
 			assert.Zero(t, got, "rejected agent config must be the zero value")
 		})
 	}
@@ -119,13 +124,13 @@ func TestValidateAgentAcceptsOptionalProject(t *testing.T) {
 	}{
 		{
 			name: "absent project with default poll timeout",
-			cfg:  Agent{PollTimeout: defaultPollTimeout},
+			cfg:  Agent{PollTimeout: testDefaultPollTimeout},
 		},
 		{
 			name: "explicit project with default poll timeout",
 			cfg: Agent{
 				Project:     testProject,
-				PollTimeout: defaultPollTimeout,
+				PollTimeout: testDefaultPollTimeout,
 			},
 		},
 		{
@@ -164,7 +169,7 @@ func TestValidateAgentRejectsInvalidConfiguration(t *testing.T) {
 		},
 		{
 			name:        "missing core trust domain",
-			cfg:         Agent{PollTimeout: defaultPollTimeout},
+			cfg:         Agent{PollTimeout: testDefaultPollTimeout},
 			trustDomain: "",
 		},
 	}
