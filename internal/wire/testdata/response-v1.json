@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "response": {
+    "type": "incus-config-nonce",
+    "version": 1,
+    "data": { "nonce": "3q2-7wARIjNEVWZ3iJmquw" }
+  }
+}
