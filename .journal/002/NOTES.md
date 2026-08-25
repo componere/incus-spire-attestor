@@ -170,3 +170,14 @@ Created `feat/phase-7-verification` from merged `master` plus isolated `agent/ph
 A bounded review found one source defect before execution: Moon’s `releaseConfig` still points at the removed `.github/workflows.disabled/` directory instead of the live workflows. Programmer slices own that fix, nonce-safe diagnostic/cause-retention inspection, and release artifact contract inspection.
 
 Safety decision: run the local GoReleaser snapshot with `--skip=sign`. Snapshot mode prevents GitHub publication, but the configured Cosign stage can still initiate keyless signing and an irreversible public Rekor entry. Keep RPM/APK signing-key variables unset, require no Sigstore bundle in `dist/`, and inspect unsigned snapshot artifacts only. The unresolved license continues to block a real tag or release, not this local rehearsal.
+
+## 2026-08-25 15:59 — Phase 7 verification and rehearsal passed
+Completed PLAN.md Phase 7 on `feat/phase-7-verification`. Fixed the only observed repository defect: `moon.yml` now tracks `.github/workflows/**/*.yml` in `releaseConfig`, so workflow-only changes affect the `root:check` gate.
+
+Verification passed from the clean worktree with mise’s locked toolchain: mockery v3.7.4 regenerated all four mocks twice with no diff; the focused attest/wire/config suite, both focused race suites, and `moon run root:check` passed; `go mod tidy` produced no diff; the targeted dependency/config search found no Cobra, Viper, Melange, apko, or template remnants.
+
+`goreleaser check` and the safe unsigned snapshot rehearsal passed. `dist/artifacts.json` resolved exactly four uploadable raw Linux binaries. All 20 checksum entries were verified, including those four binaries through the same artifact-name-to-build-path mapping used by the release workflow. Six APK/DEB/RPM packages were inspected directly; every package for both architectures contains `/usr/bin/incus-agent` and `/usr/bin/incus-server`. No Sigstore bundle or module-proxy tree was produced.
+
+Nonce/error inspection found no path that emits nonce bytes. Existing passing tests assert redaction across wire, agent, Incus guest/host, server, and SPIRE boundaries and preserve `context.Canceled`/`context.DeadlineExceeded` causes or their gRPC status codes. Three Programmer agents completed disjoint audits; two bounded final Review agents report the one-line patch PR-ready. Release evidence is intentionally scoped to unsigned asset layout and checksum/package closure: snapshot mode did not exercise tagged module-proxy builds or Cosign/Rekor signing, and the unresolved license still forbids a real release.
+
+Next: push `feat/phase-7-verification` and open the Phase 7 pull request.
