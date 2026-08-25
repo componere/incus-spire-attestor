@@ -1,16 +1,14 @@
 ---
-title: template-go Docs
+title: incus-spire-attestor
 slug: /
-description: Starting point for Meigma Go projects.
+description: Documentation for the Incus SPIRE NodeAttestor plugins.
 ---
 
-# template-go Docs
+# incus-spire-attestor
 
-This repository is the starting point for Meigma Go projects.
+These pages document the two Linux external SPIRE NodeAttestor plugins
+`incus-agent` and `incus-server`. Both use the fixed logical name `incus`.
 
-Generated projects should replace this page with project-specific documentation after bootstrapping:
-
-- project summary
-- quick start
-- operating notes
-- support and security paths
+- [Deploy](how-to/deploy.md) — install and configure the plugins beside SPIRE.
+- [Configuration](reference/configuration.md) — HCL fields, identity, and selectors.
+- [Security model](explanation/security-model.md) — what v1 proves and what it does not.

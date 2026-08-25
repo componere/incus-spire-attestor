@@ -1,8 +1,8 @@
-site_name: template-go
-site_description: Meigma Go repository template
-site_url: https://meigma.github.io/template-go/
-repo_name: meigma/template-go
-repo_url: https://github.com/meigma/template-go
+site_name: incus-spire-attestor
+site_description: Incus SPIRE NodeAttestor plugins
+site_url: https://componere.github.io/incus-spire-attestor/
+repo_name: componere/incus-spire-attestor
+repo_url: https://github.com/componere/incus-spire-attestor
 edit_uri: edit/master/docs/docs/
 docs_dir: docs
 site_dir: build
@@ -35,6 +35,9 @@ theme:
 
 nav:
   - Home: index.md
+  - Deploy: how-to/deploy.md
+  - Configuration: reference/configuration.md
+  - Security model: explanation/security-model.md
 
 plugins:
   - search
