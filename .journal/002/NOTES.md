@@ -23,3 +23,7 @@ Verification: `go test ./...` passed, `golangci-lint fmt --config .golangci.yml 
 ## 2026-08-25 09:28 — Pull request opened
 Pushed `feat/phase-0-baseline` and opened PR #6, `chore: establish phase 0 project baseline`: https://github.com/componere/incus-spire-attestor/pull/6
 Session 002 remains in progress for the next implementation slice.
+
+## 2026-08-25 09:31 — Phase 0 merged
+PR #6 passed CI and was squash-merged into `master` as `26607b9572908329744bcd530adee1d9e94153ca`.
+Next: implement the first Phase 1 pure-domain slice from the updated default branch.
