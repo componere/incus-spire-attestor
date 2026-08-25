@@ -136,3 +136,6 @@ Next: open the Phase 5 pull request, then complete PLAN.md Phase 6 documentation
 
 ## 2026-08-25 14:56 — Phase 5 pull request opened
 Pushed `feat/phase-5-build-release` at `ad451a8` and opened PR #12, `build(release): package and scan both plugins`: https://github.com/componere/incus-spire-attestor/pull/12. GitHub reports the pull request mergeable; CI and GitHub Pages checks queued.
+
+## 2026-08-25 14:58 — Phase 5 pull request checks passed
+PR #12 passed CI, GitHub Pages, and Trivy checks. The pull request remains mergeable and ready for review.
