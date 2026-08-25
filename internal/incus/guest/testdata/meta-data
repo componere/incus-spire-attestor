@@ -1,0 +1,3 @@
+#cloud-config
+instance-id: i-0123456789abcdef
+local-hostname: vm-01
