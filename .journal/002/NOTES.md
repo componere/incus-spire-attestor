@@ -215,3 +215,7 @@ Next: commit and push `feat/phase-8-sandbox`, open its pull request, and resolve
 
 ## 2026-08-25 16:44 — Phase 8 pull request opened
 Committed the standalone location fix as `8af987a`, pushed `feat/phase-8-sandbox`, and opened PR #15, `fix(host): normalize standalone instance location`: https://github.com/componere/incus-spire-attestor/pull/15. GitHub reports the branch mergeable. CI and GitHub Pages checks passed; the Pages deploy job correctly skipped for the pull request.
+
+## 2026-08-25 16:56 — Phase 8 merged
+PR #15 was squash-merged into `master` as `46707ebc14cc7f42fc930dd05fe2e2cc53d2adbd`.
+Next: open a separate pull request that dual-licenses the repository under Apache-2.0 and MIT.
