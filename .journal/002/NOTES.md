@@ -45,3 +45,8 @@ Session 002 remains in progress pending review and the next slice.
 ## 2026-08-25 10:13 — Phase 1.1 merged
 PR #7 passed CI and was squash-merged into `master` as `2229c2b506be4f98520ee97e8cca345e90c88bd1`.
 User directed completion of all remaining Phase 1 work before stopping. Phase 1.2 wire codecs and Phase 1.3 pure HCL configuration will proceed in parallel from the merged domain baseline, then land together through one reviewed integration PR.
+
+## 2026-08-25 10:17 — Remaining Phase 1 parallelized
+Created `feat/phase-1-complete` plus isolated production/test worktrees for `internal/wire` and `internal/config`. Four Programmer agents are implementing Phase 1.2 and 1.3 concurrently; two bounded Reviewer agents are checking the fixed contracts.
+Wire contract: direct v1 JSON codecs over `attest` types with 64 KiB, UTF-8, exact-one-value, unknown-field, type/version, key, and RawURLEncoding nonce enforcement.
+Config contract: strict HCL v2.24.0 decoding with pure separate validation, exact approved fields/defaults/limits, and no TLS-file or Incus I/O.
