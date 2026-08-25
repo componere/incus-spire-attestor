@@ -119,3 +119,6 @@ Pushed `feat/phase-4-spire-services` at `a10af3e` and opened PR #11, `feat(spire
 ## 2026-08-25 14:12 — Phase 4 merged
 PR #11 passed CI and GitHub Pages checks and was squash-merged into `master` as `9886bb2d32a3db6cf1b9c864005081c8360aee69`.
 Next: complete PLAN.md Phase 5 build, packaging, release, and security-scan cutover for both plugin binaries.
+
+## 2026-08-25 14:28 — Phase 5 build and release work started
+Started the approved PLAN.md Phase 5 cutover after PR #11 merged. Scope is limited to dual-architecture builds for both plugin commands, raw GoReleaser binaries plus native packages, removal of the template container path, release workflow removal of OCI publication, and binary filesystem vulnerability scans. A bounded contract review is checking one discovered mismatch: the pinned reusable pre-publish workflow does not upload raw `formats: [binary]` artifacts.
