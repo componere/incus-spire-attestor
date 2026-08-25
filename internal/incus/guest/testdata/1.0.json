@@ -1,0 +1,6 @@
+{
+  "api_version": "1.0",
+  "location": "member-01",
+  "instance_type": "virtual-machine",
+  "state": "Started"
+}
