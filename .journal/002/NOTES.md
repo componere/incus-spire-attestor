@@ -181,3 +181,6 @@ Verification passed from the clean worktree with mise’s locked toolchain: mock
 Nonce/error inspection found no path that emits nonce bytes. Existing passing tests assert redaction across wire, agent, Incus guest/host, server, and SPIRE boundaries and preserve `context.Canceled`/`context.DeadlineExceeded` causes or their gRPC status codes. Three Programmer agents completed disjoint audits; two bounded final Review agents report the one-line patch PR-ready. Release evidence is intentionally scoped to unsigned asset layout and checksum/package closure: snapshot mode did not exercise tagged module-proxy builds or Cosign/Rekor signing, and the unresolved license still forbids a real release.
 
 Next: push `feat/phase-7-verification` and open the Phase 7 pull request.
+
+## 2026-08-25 16:02 — Phase 7 pull request opened
+Pushed `feat/phase-7-verification` at `3f46d4e` and opened PR #14, `fix(moon): track active workflows in release checks`: https://github.com/componere/incus-spire-attestor/pull/14. GitHub reports the pull request clean and mergeable. CI and GitHub Pages checks passed; the deploy job correctly skipped for the pull request.
