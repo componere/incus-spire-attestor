@@ -27,3 +27,8 @@ Session 002 remains in progress for the next implementation slice.
 ## 2026-08-25 09:31 — Phase 0 merged
 PR #6 passed CI and was squash-merged into `master` as `26607b9572908329744bcd530adee1d9e94153ca`.
 Next: implement the first Phase 1 pure-domain slice from the updated default branch.
+
+## 2026-08-25 09:36 — Domain foundation started
+Next slice boundary: PLAN.md Phase 1.1 only, implementing the pure `internal/attest` domain rules and behavior tests. Phase 1.2 wire codecs and Phase 1.3 configuration remain separate.
+Branch/worktrees: `feat/domain-foundation` integrates isolated `agent/domain-production` and `agent/domain-tests` work. A bounded Reviewer agent is checking the API contract while both Programmer agents implement against the same fixed contract.
+Dependencies: added `github.com/google/uuid` v1.6.0 and `github.com/stretchr/testify` v1.11.1 as slice prerequisites; `go mod tidy` will set their final direct/indirect classification after integration.
