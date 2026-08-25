@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/componere/incus-spire-attestor/internal/attest"
 )
@@ -48,7 +49,7 @@ type decodedChallengeData struct {
 func EncodeChallenge(key attest.ConfigKey) ([]byte, error) {
 	parsed, err := attest.NewConfigKey(string(key))
 	if err != nil {
-		return nil, wrapInvalid(err)
+		return nil, fmt.Errorf("%w: invalid config_key", ErrInvalid)
 	}
 
 	return encodeMessage(challengeEnvelope{
@@ -86,7 +87,7 @@ func DecodeChallenge(raw []byte) (attest.ConfigKey, error) {
 
 	key, err := attest.NewConfigKey(data.ConfigKey)
 	if err != nil {
-		return "", wrapInvalid(err)
+		return "", fmt.Errorf("%w: invalid config_key", ErrInvalid)
 	}
 	return key, nil
 }

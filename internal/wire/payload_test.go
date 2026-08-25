@@ -303,6 +303,10 @@ func TestDecodePayloadRejectsMissingAndEmptyFields(t *testing.T) {
 			name: "present empty project",
 			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":"","instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
 		},
+		{
+			name: "null project",
+			raw:  `{"version":1,"evidence":[{"type":"incus-guest-claims","version":1,"data":{"instance_name":"vm-01","project":null,"instance_type":"virtual-machine","uuid":"550e8400-e29b-41d4-a716-446655440000","location":"member-01","cloud_init_id":"i-0123456789abcdef"}}]}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -314,6 +318,18 @@ func TestDecodePayloadRejectsMissingAndEmptyFields(t *testing.T) {
 			assert.Zero(t, got)
 		})
 	}
+}
+
+func TestDecodePayloadDoesNotEchoInvalidUUID(t *testing.T) {
+	t.Parallel()
+
+	input := strings.Repeat("attacker-controlled\n", 100)
+	raw := strings.Replace(validPayloadJSON(), jsonString(canonicalUUID), jsonString(input), 1)
+
+	got, err := DecodePayload([]byte(raw))
+	assertInvalid(t, err)
+	assertNoSecret(t, err, input)
+	assert.Zero(t, got)
 }
 
 func TestDecodePayloadRejectsEvidenceCountAndType(t *testing.T) {

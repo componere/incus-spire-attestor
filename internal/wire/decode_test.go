@@ -2,6 +2,7 @@ package wire
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,6 +29,17 @@ func TestDecodeRejectsInvalidUTF8(t *testing.T) {
 			assertInvalid(t, tt.decode(invalid))
 		})
 	}
+}
+
+func TestDecodeDoesNotEchoUnknownFieldName(t *testing.T) {
+	t.Parallel()
+
+	input := strings.Repeat("attacker-controlled\n", 100)
+	raw := strings.Replace(validPayloadJSON(), `{"version":1,`, `{"version":1,`+jsonString(input)+`:true,`, 1)
+
+	_, err := DecodePayload([]byte(raw))
+	assertInvalid(t, err)
+	assertNoSecret(t, err, input)
 }
 
 func TestDecodeRejectsOversizedMessages(t *testing.T) {

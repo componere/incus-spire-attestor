@@ -53,8 +53,8 @@ type decodedPayload struct {
 type decodedPayloadData struct {
 	// InstanceName is the guest instance name.
 	InstanceName string `json:"instance_name"`
-	// Project is the optional guest project hint; nil means omitted.
-	Project *string `json:"project"`
+	// Project is the encoded optional guest project hint; nil means omitted.
+	Project json.RawMessage `json:"project"`
 	// InstanceType is the guest instance type.
 	InstanceType string `json:"instance_type"`
 	// UUID is the guest instance UUID.
@@ -157,10 +157,14 @@ func DecodePayload(raw []byte) (attest.Claims, error) {
 		CloudInitID: data.CloudInitID,
 	}
 	if data.Project != nil {
-		if *data.Project == "" {
+		var project string
+		if err := decodeStrict(data.Project, &project); err != nil {
+			return attest.Claims{}, err
+		}
+		if project == "" {
 			return attest.Claims{}, fmt.Errorf("%w: project is empty", ErrInvalid)
 		}
-		claims.Project = attest.ProjectName(*data.Project)
+		claims.Project = attest.ProjectName(project)
 	}
 	return claims, nil
 }
@@ -172,7 +176,7 @@ func payloadUUID(raw attest.InstanceUUID) (attest.InstanceUUID, error) {
 	}
 	id, err := attest.NewInstanceUUID(string(raw))
 	if err != nil {
-		return "", wrapInvalid(err)
+		return "", fmt.Errorf("%w: uuid is not a canonical UUID", ErrInvalid)
 	}
 	return id, nil
 }

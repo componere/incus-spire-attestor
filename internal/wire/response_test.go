@@ -11,11 +11,13 @@ import (
 )
 
 const (
-	paddedNonceRawURL = "3q2-7wARIjNEVWZ3iJmquw=="
-	stdNonceEncoding  = "3q2+7wARIjNEVWZ3iJmquw=="
-	nonce15RawURL     = "3q2-7wARIjNEVWZ3iJmq"
-	nonce17RawURL     = "3q2-7wARIjNEVWZ3iJmqu8w"
-	malformedNonce    = "!!!not-base64url!!!"
+	paddedNonceRawURL  = "3q2-7wARIjNEVWZ3iJmquw=="
+	stdNonceEncoding   = "3q2+7wARIjNEVWZ3iJmquw=="
+	noncanonicalRawURL = "3q2-7wARIjNEVWZ3iJmqux"
+	newlineNonceRawURL = "3q2-\n7wARIjNEVWZ3iJmquw"
+	nonce15RawURL      = "3q2-7wARIjNEVWZ3iJmq"
+	nonce17RawURL      = "3q2-7wARIjNEVWZ3iJmqu8w"
+	malformedNonce     = "!!!not-base64url!!!"
 )
 
 func TestDecodeResponseGoldenRoundTrip(t *testing.T) {
@@ -66,6 +68,8 @@ func TestParseNonceRejectsInvalidEncodings(t *testing.T) {
 		{name: "padded rawurl", input: paddedNonceRawURL},
 		{name: "standard base64", input: stdNonceEncoding},
 		{name: "malformed", input: malformedNonce},
+		{name: "noncanonical trailing bits", input: noncanonicalRawURL},
+		{name: "embedded newline", input: newlineNonceRawURL},
 		{name: "empty", input: ""},
 		{name: "fifteen decoded bytes", input: nonce15RawURL},
 		{name: "seventeen decoded bytes", input: nonce17RawURL},
@@ -107,6 +111,8 @@ func TestDecodeResponseRejectsNonceEncodings(t *testing.T) {
 		{name: "padded rawurl", nonce: paddedNonceRawURL},
 		{name: "standard base64", nonce: stdNonceEncoding},
 		{name: "malformed", nonce: malformedNonce},
+		{name: "noncanonical trailing bits", nonce: noncanonicalRawURL},
+		{name: "embedded newline", nonce: newlineNonceRawURL},
 		{name: "empty", nonce: ""},
 		{name: "fifteen decoded bytes", nonce: nonce15RawURL},
 		{name: "seventeen decoded bytes", nonce: nonce17RawURL},

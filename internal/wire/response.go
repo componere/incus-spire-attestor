@@ -87,7 +87,10 @@ func DecodeResponse(raw []byte) (attest.Nonce, error) {
 
 // ParseNonce decodes an unpadded base64url nonce and requires exactly 16 bytes.
 func ParseNonce(raw string) (attest.Nonce, error) {
-	decoded, err := base64.RawURLEncoding.DecodeString(raw)
+	if len(raw) != base64.RawURLEncoding.EncodedLen(len(attest.Nonce{})) {
+		return attest.Nonce{}, fmt.Errorf("%w: invalid nonce length", ErrInvalid)
+	}
+	decoded, err := base64.RawURLEncoding.Strict().DecodeString(raw)
 	if err != nil {
 		return attest.Nonce{}, fmt.Errorf("%w: invalid nonce encoding", ErrInvalid)
 	}

@@ -68,18 +68,10 @@ func decodeRaw(raw []byte) (json.RawMessage, error) {
 		return nil, fmt.Errorf("%w: message is not valid UTF-8", ErrInvalid)
 	}
 
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	var msg json.RawMessage
-	if err := dec.Decode(&msg); err != nil {
-		return nil, wrapJSONError(err)
-	}
-	if err := requireJSONEOF(dec); err != nil {
+	if err := rejectDuplicateNames(raw); err != nil {
 		return nil, err
 	}
-	if err := rejectDuplicateNames(msg); err != nil {
-		return nil, err
-	}
-	return msg, nil
+	return json.RawMessage(raw), nil
 }
 
 // decodeStrict unmarshals raw into dest and rejects unknown fields.
@@ -144,7 +136,7 @@ func requireType(got *string, want, what string) error {
 		return fmt.Errorf("%w: %s type is required", ErrInvalid, what)
 	}
 	if *got != want {
-		return fmt.Errorf("%w: %s type %q", ErrUnsupported, what, *got)
+		return fmt.Errorf("%w: unsupported %s type", ErrUnsupported, what)
 	}
 	return nil
 }
@@ -204,7 +196,7 @@ func rejectDuplicateObject(dec *json.Decoder) error {
 			return fmt.Errorf("%w: object key is not a string", ErrInvalid)
 		}
 		if _, exists := seen[key]; exists {
-			return fmt.Errorf("%w: duplicate field %q", ErrInvalid, key)
+			return fmt.Errorf("%w: duplicate field", ErrInvalid)
 		}
 		seen[key] = struct{}{}
 		if err := rejectDuplicateValue(dec); err != nil {
@@ -230,14 +222,6 @@ func rejectDuplicateArray(dec *json.Decoder) error {
 	return nil
 }
 
-// wrapInvalid translates a domain error into ErrInvalid without wrapping its class.
-func wrapInvalid(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %s", ErrInvalid, err.Error())
-}
-
 // wrapJSONError maps encoding/json failures to ErrInvalid without raw input.
 func wrapJSONError(err error) error {
 	if err == nil {
@@ -261,8 +245,8 @@ func wrapJSONError(err error) error {
 	}
 
 	const unknownPrefix = "json: unknown field "
-	if field, ok := strings.CutPrefix(err.Error(), unknownPrefix); ok {
-		return fmt.Errorf("%w: unknown field %s", ErrInvalid, field)
+	if strings.HasPrefix(err.Error(), unknownPrefix) {
+		return fmt.Errorf("%w: unknown field", ErrInvalid)
 	}
 	return fmt.Errorf("%w: invalid JSON", ErrInvalid)
 }
