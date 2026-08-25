@@ -184,3 +184,7 @@ Next: push `feat/phase-7-verification` and open the Phase 7 pull request.
 
 ## 2026-08-25 16:02 — Phase 7 pull request opened
 Pushed `feat/phase-7-verification` at `3f46d4e` and opened PR #14, `fix(moon): track active workflows in release checks`: https://github.com/componere/incus-spire-attestor/pull/14. GitHub reports the pull request clean and mergeable. CI and GitHub Pages checks passed; the deploy job correctly skipped for the pull request.
+
+## 2026-08-25 16:06 — Phase 7 merged
+PR #14 was squash-merged into `master` as `6367b0713448d4050e31e396d5a131ac04af5103`.
+Next: execute PLAN.md Phase 8 sandbox end-to-end verification against `spike`, retain only approved evidence, and restore all sandbox state.
