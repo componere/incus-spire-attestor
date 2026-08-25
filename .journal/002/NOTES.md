@@ -112,3 +112,6 @@ Implemented `internal/spire` with SPIRE Plugin SDK v1.15.0 agent/server NodeAtte
 Replaced the template command with `incus-agent` and `incus-server`, removed Cobra/Viper/template metadata paths, and minimally retargeted the existing Moon build task to both commands so Phase 4 remains CI-compatible before the fuller Phase 5 build rewrite. Three bounded reviews and re-reviews report the agent, server, and runtime/command slices PR-ready with all findings resolved.
 
 Verification passed: `go mod tidy`, `go test -race ./internal/spire`, `go test ./...`, `go build ./cmd/incus-agent ./cmd/incus-server`, `moon run root:build`, `golangci-lint run --config .golangci.yml ./...`, and `git diff --check`.
+
+## 2026-08-25 14:09 — Phase 4 pull request opened
+Pushed `feat/phase-4-spire-services` at `a10af3e` and opened PR #11, `feat(spire): add plugin services and command entrypoints`: https://github.com/componere/incus-spire-attestor/pull/11. GitHub reports the pull request mergeable; CI and GitHub Pages checks queued.
