@@ -159,3 +159,7 @@ Next: commit the integrated review fixes, push `feat/phase-6-docs`, and open the
 
 ## 2026-08-25 15:27 — Phase 6 pull request opened
 Pushed `feat/phase-6-docs` at `7560f82` and opened PR #13, `docs: add product documentation and remove template remnants`: https://github.com/componere/incus-spire-attestor/pull/13. GitHub reports the pull request mergeable. CI and GitHub Pages checks passed; the deploy job correctly skipped for the pull request.
+
+## 2026-08-25 15:39 — Phase 6 merged
+PR #13 was squash-merged into `master` as `bc5d559c1d3cf34c8120e5f6ec37fdfd235568bd`.
+Next: complete PLAN.md Phase 7 full local verification and release rehearsal.
