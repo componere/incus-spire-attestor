@@ -37,3 +37,7 @@ Dependencies: added `github.com/google/uuid` v1.6.0 and `github.com/stretchr/tes
 Implemented `internal/attest` with canonical UUIDs, exact nonce-key grammar and attempt-key formatting, required guest/API claim validation, VM-only matching, fixed-size nonce construction and constant-time verification, and API-only identity/selectors with reserved-namespace, count, and value-byte limits.
 Contract review corrected the selector byte metric to values only, required canonicalization at matching/identity boundaries, applied named domain field types, added the attempt-ID key constructor, and added defense-in-depth against nonce selectors. Code review found no blocker; its actionable findings were addressed by validating all API identity fields in `BuildAttributes`, reusing normalized UUID results inside `MatchClaims`, and adding producer/validator round-trip coverage.
 Verification: `go test -race ./internal/attest`, `go test ./...`, and `golangci-lint run --config .golangci.yml ./internal/attest` all pass. Formatting is clean. The remaining review suggestions—introducing additional trust-domain/location/agent-ID types—were intentionally deferred because SPIRE core configuration owns trust-domain validation and those types are outside the approved Phase 1.1 surface.
+
+## 2026-08-25 10:01 — Domain foundation PR opened
+Pushed `feat/domain-foundation` and opened PR #7, `feat(attest): add pure domain foundation`: https://github.com/componere/incus-spire-attestor/pull/7
+Session 002 remains in progress pending review and the next slice.
