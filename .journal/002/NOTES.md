@@ -62,3 +62,7 @@ The implementation branch is clean. CI and GitHub Pages checks started after the
 
 ## 2026-08-25 11:02 — Phase 1 pull request ready
 PR #8 CI and GitHub Pages checks passed. GitHub reports the pull request as clean and mergeable.
+
+## 2026-08-25 11:13 — Phase 1 merged
+PR #8 passed review and CI and was squash-merged into `master` as `5f9ba223f6693a6c242f895badba01b0b7d456f1`.
+Next: implement PLAN.md Phase 2 application ports and services from the updated default branch.
