@@ -17,7 +17,6 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      - darwin
       - linux
     goarch:
       - amd64
@@ -34,7 +33,6 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      - darwin
       - linux
     goarch:
       - amd64
@@ -64,7 +62,6 @@ nfpms:
     homepage: https://github.com/componere/incus-spire-attestor
     maintainer: Componere
     description: SPIRE node attestor plugins for Incus virtual machines.
-    license: Apache-2.0 OR MIT
     formats:
       - deb
       - rpm
@@ -72,10 +69,10 @@ nfpms:
     bindir: /usr/bin
     rpm:
       signature:
-        key_file: "{{ .Env.RELEASE_RPM_SIGNING_KEY_FILE }}"
+        key_file: '{{ envOrDefault "RELEASE_RPM_SIGNING_KEY_FILE" "" }}'
     apk:
       signature:
-        key_file: "{{ .Env.RELEASE_APK_SIGNING_KEY_FILE }}"
+        key_file: '{{ envOrDefault "RELEASE_APK_SIGNING_KEY_FILE" "" }}'
         key_name: incus-spire-attestor-001
 
 checksum:

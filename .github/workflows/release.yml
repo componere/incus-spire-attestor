@@ -91,6 +91,28 @@ jobs:
           mkdir -p release-assets
           cp dist/checksums.txt dist/checksums.txt.sigstore.json release-assets/
 
+          declare -A raw_binary_paths=()
+          raw_binary_count=0
+          while IFS=$'\t' read -r path name; do
+            if [[ ! -f "${path}" ]]; then
+              echo "::error::Missing GoReleaser binary payload ${path}."
+              exit 1
+            fi
+            raw_binary_paths["${name}"]="${path}"
+            ((raw_binary_count += 1))
+          done < <(
+            jq -r '
+              .[]
+              | select(.type == "Binary" and .name != .extra.Binary)
+              | [.path, .name]
+              | @tsv
+            ' dist/artifacts.json
+          )
+          if [[ "${raw_binary_count}" -ne 4 ]]; then
+            echo "::error::Expected four raw binary payloads, found ${raw_binary_count}."
+            exit 1
+          fi
+
           while IFS= read -r line || [[ -n "${line}" ]]; do
             [[ -z "${line}" || "${line}" == \#* ]] && continue
             name="${line##* }"
@@ -102,11 +124,15 @@ jobs:
               echo "::error::Checksum payload ${name} is not a flat filename."
               exit 1
             fi
-            if [[ ! -f "dist/${name}" ]]; then
+            path="dist/${name}"
+            if [[ ! -f "${path}" ]]; then
+              path="${raw_binary_paths["${name}"]:-}"
+            fi
+            if [[ -z "${path}" || ! -f "${path}" ]]; then
               echo "::error::Missing checksum payload ${name}."
               exit 1
             fi
-            cp "dist/${name}" "release-assets/${name}"
+            cp "${path}" "release-assets/${name}"
           done < dist/checksums.txt
 
       - name: Upload authoritative release assets
