@@ -162,6 +162,10 @@ mounted credentials.
 If the agent `project` hint is omitted, confirm that exactly one allowed
 project contains a matching instance. Multiple matches are denied as
 ambiguous.
+On a standalone Incus server, guest `/1.0` location is the server name
+while the instance API record reports `none`. The server plugin
+substitutes the name it read from `/1.0` at Configure; confirm those
+two names match.
 
 ## Roll back or revoke credentials
 
