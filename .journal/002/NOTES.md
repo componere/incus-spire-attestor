@@ -41,3 +41,7 @@ Verification: `go test -race ./internal/attest`, `go test ./...`, and `golangci-
 ## 2026-08-25 10:01 — Domain foundation PR opened
 Pushed `feat/domain-foundation` and opened PR #7, `feat(attest): add pure domain foundation`: https://github.com/componere/incus-spire-attestor/pull/7
 Session 002 remains in progress pending review and the next slice.
+
+## 2026-08-25 10:13 — Phase 1.1 merged
+PR #7 passed CI and was squash-merged into `master` as `2229c2b506be4f98520ee97e8cca345e90c88bd1`.
+User directed completion of all remaining Phase 1 work before stopping. Phase 1.2 wire codecs and Phase 1.3 pure HCL configuration will proceed in parallel from the merged domain baseline, then land together through one reviewed integration PR.
