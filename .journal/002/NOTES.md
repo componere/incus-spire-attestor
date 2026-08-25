@@ -98,3 +98,7 @@ The bounded contract review found and corrected this context-order issue plus gu
 
 ## 2026-08-25 13:11 — Phase 3 pull request opened
 Committed the reviewed adapter integration as `ea0399a` and opened PR #10, `feat(incus): add guest and host adapters`: https://github.com/componere/incus-spire-attestor/pull/10. GitHub reports the pull request mergeable; CI and GitHub Pages checks started.
+
+## 2026-08-25 13:16 — Phase 3 merged
+PR #10 passed CI and GitHub Pages checks and was squash-merged into `master` as `ce79ffd408a7be28e790258992ab8f9203a04257`.
+Next: complete PLAN.md Phase 4 plugin entrypoints and configuration registration from the updated default branch.
