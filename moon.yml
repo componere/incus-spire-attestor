@@ -33,7 +33,7 @@ fileGroups:
     - '.goreleaser.yaml'
     - 'release-please-config.json'
     - '.release-please-manifest.json'
-    - '.github/workflows.disabled/**/*.yml'
+    - '.github/workflows/**/*.yml'
 
 workspace:
   inheritedTasks:
