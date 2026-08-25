@@ -188,3 +188,10 @@ Pushed `feat/phase-7-verification` at `3f46d4e` and opened PR #14, `fix(moon): t
 ## 2026-08-25 16:06 — Phase 7 merged
 PR #14 was squash-merged into `master` as `6367b0713448d4050e31e396d5a131ac04af5103`.
 Next: execute PLAN.md Phase 8 sandbox end-to-end verification against `spike`, retain only approved evidence, and restore all sandbox state.
+
+## 2026-08-25 16:12 — Phase 8 sandbox contract bounded
+Inventory confirmed `sandbox01` runs Incus client/server 7.3 and one running `x86_64` VM, `default/spike`; no SPIRE binaries or services are installed. The VM exposes `/dev/incus/sock`, has matching cloud-init hostname `spike`, profile `default`, UUID `e90499b4-4395-418f-8dfb-f39ab7108f93`, a nonempty cloud-init instance ID, and existing selector key `user.spire.test=hello`.
+
+Phase 8 will run SPIRE 1.15.0 in isolated temporary host/guest directories and transient systemd units. The Incus client certificate will be restricted to project `default`, Incus HTTPS will bind loopback only, and the credential files will remain host-only. Selector proof uses the existing `user.spire.test` plus one absent configured key; no test selector will be written.
+
+The bounded contract review found six execution ambiguities in PLAN.md. Safe interpretation: freeze and hash the project-qualified API config baseline; use separate temporary SPIRE processes and data; prove timeout by both failure status and prefix-wide nonce-key absence; treat container rejection as agent-side pre-send validation; use a canonical alternate DMI UUID for server-side mismatch; and enumerate/remediate every mutation before sign-off. Any baseline divergence blocks completion.
