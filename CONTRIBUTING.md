@@ -1,50 +1,64 @@
 # Contributing
 
-Thank you for your interest in contributing.
-This repository is a Go project template, so changes should keep the generated-project path simple and predictable.
-For private vulnerability reporting, use [SECURITY.md](SECURITY.md) instead of public channels.
+Contributions should stay focused on the two external SPIRE NodeAttestor plugins in this repository: `incus-agent` and `incus-server`.
 
-## Reporting Bugs
+Report vulnerabilities through [SECURITY.md](SECURITY.md). Do not use public issues, pull requests, or discussions for security reports.
 
-Report non-security bugs through GitHub issues.
-Include the following details when possible:
+## Reporting bugs
+
+Use GitHub issues for non-sensitive bugs. Include the following when you can:
 
 - version, commit, or environment details
 - steps to reproduce
 - expected behavior
 - actual behavior
-- logs, screenshots, or a minimal reproduction
+- logs or a minimal reproduction
 
-If you are reporting a security issue, stop and follow [SECURITY.md](SECURITY.md) instead.
+If the report is a vulnerability, stop and follow [SECURITY.md](SECURITY.md).
 
-## Pull Requests
+## Pull requests
 
-Contributors should:
-
-1. Keep changes focused and scoped to a single problem.
+1. Keep the change scoped to one problem.
 2. Add or update tests when behavior changes.
 3. Update documentation when user-facing behavior changes.
 4. Use Conventional Commit subjects, such as `feat: add config loader` or `fix: handle empty input`.
-5. Make sure `moon run root:check` passes before requesting review.
+5. Run the checks below before you request review.
 
-## Local Setup
+## Local setup
+
+Provision the pinned toolchain, then use Moon for the project tasks:
 
 ```sh
-mise install         # provision the pinned toolchain (Go, Moon, the dev CLIs)
+mise install
+moon run root:format
+moon run root:lint
+moon run root:test
+moon run root:build
 moon run root:check
 ```
 
-Useful project commands:
+`moon run root:check` is the aggregate local check.
+
+## Focused Go commands
+
+Use these when you are changing one plugin or an internal package. They compile or test the packages. Do not run the plugin binaries; SPIRE loads them as external plugins.
 
 ```sh
-moon run root:format
-moon run root:lint
-moon run root:build
-moon run root:test
-go run ./cmd/template-go --version
+go test ./cmd/incus-agent
+go test ./cmd/incus-server
+go test ./internal/...
+go build -o bin/incus-agent ./cmd/incus-agent
+go build -o bin/incus-server ./cmd/incus-server
 ```
 
-## Release Changes
+## Documentation
 
-Release Please reads Conventional Commit subjects to build changelogs and release PRs.
-Keep release-impacting commits clear; routine docs, CI, and maintenance commits should use the appropriate non-release type.
+Validate the MkDocs site with:
+
+```sh
+moon run docs:build
+```
+
+## Security reports
+
+Use [SECURITY.md](SECURITY.md) for private vulnerability reporting.

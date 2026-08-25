@@ -2,10 +2,10 @@
 name: mise
 description: >
   Operate mise as the single source of truth for tool versions and integrity in
-  template-go. Use when touching mise.toml or mise.lock, bumping or adding a pinned
-  tool (go, python, uv, golangci-lint, moon, melange, apko, cosign), resolving
-  "command not found"/PATH problems, fixing locked/trust failures, or wiring mise
-  into moon, the CI workflow, or the local container task.
+  incus-spire-attestor. Use when touching mise.toml or mise.lock, bumping or
+  adding a pinned tool, resolving command-not-found or PATH problems, fixing
+  locked or trust failures, or wiring mise into Moon, CI, or release
+  workflows.
 ---
 
 # mise
@@ -13,7 +13,7 @@ description: >
 mise owns the lifecycle of every pinned tool and the project's tool-related env in
 this repo. It replaced Proto (`.prototools`, `.moon/proto/*`). Treat `mise.toml` +
 `mise.lock` as the only place a toolchain version is declared; everything else
-(moon, CI, the container build) consumes what mise puts on PATH.
+(Moon, CI, and release workflows) consumes what mise puts on PATH.
 
 ## Verified against
 
@@ -29,11 +29,11 @@ this repo. It replaced Proto (`.prototools`, `.moon/proto/*`). Treat `mise.toml`
 - Bumping or adding a tool, or reviewing a diff that touches `mise.toml`/`mise.lock`.
 - A tool is missing from PATH, or `mise install` fails closed under `locked`.
 - mise prompts for trust (commonly inside a `.wt/` worktree that nests under the repo).
-- Explaining how moon, `ci.yml`, or `mise run image-local` get their binaries.
+- Explaining how Moon, CI, or release workflows get their binaries.
 
 ## mise's lane (non-negotiables)
 
-mise manages **tool + env lifecycle only**, plus the one local container task below.
+mise manages **tool and environment lifecycle only**.
 State these as rules:
 
 1. mise is **not the task runner and not the CI gate** — that is moon. Do not move
@@ -46,18 +46,18 @@ State these as rules:
    backend resolves without a recorded checksum — never let a tool land that way.
 4. **Bump = edit `mise.toml`, then `mise lock`, then commit both together.** Never
    hand-edit `mise.lock` (`# @generated`) and never commit one without the other.
-5. The only mise *task* in this repo is `image-local` (a local container convenience).
-   Do not add general-purpose tasks here.
+5. Do not add general-purpose tasks to mise; Moon owns project task orchestration.
 
 ## How mise is wired here
 
 `mise.toml`:
 
-- `[tools]`: `go = "1.26.4"`, `python = "3.14.3"` (core backends), and six CLIs
-  pinned via explicit `aqua:` refs (`golangci/golangci-lint`, `astral-sh/uv`,
-  `moonrepo/moon`, `chainguard-dev/melange`, `chainguard-dev/apko`, `sigstore/cosign`).
+- `[tools]`: `go = "1.26.6"`, `python = "3.14.3"` (core backends), and eight
+  CLIs pinned via explicit `aqua:` refs (`golangci/golangci-lint`,
+  `vektra/mockery`, `astral-sh/uv`, `moonrepo/moon`, `goreleaser/goreleaser`,
+  `cli/cli`, `anchore/syft`, `sigstore/cosign`).
 - `[env] GOTOOLCHAIN = "local"`: never auto-download a Go toolchain other than the
-  pinned one; matches `go.mod`'s `go 1.26.4`. mise `[env]` is **not** carried by the
+  pinned one; matches `go.mod`'s `go 1.26.6`. mise `[env]` is **not** carried by the
   CI action's shims, so `ci.yml` also sets `GOTOOLCHAIN: local` at job level — keep
   both in sync.
 - `[settings] lockfile = true` (read/write `mise.lock`) and `locked = true` (the
@@ -69,8 +69,7 @@ task command is a bare binary (`go`, `golangci-lint`) resolved from PATH. `moon.
 also lists `mise.toml` + `mise.lock` as inputs (via the `goSources`/`lintConfig`
 groups) of build/format/lint/test, so a tool bump re-triggers those tasks and
 invalidates the result cache of the cacheable one (build; format/lint/test already
-run with `cache: false`). See the `worktrunk` skill for worktree mechanics and the
-`melange`/`apko` skills for the container build those pinned tools feed.
+run with `cache: false`). See the `worktrunk` skill for worktree mechanics.
 
 CI (`.github/workflows/ci.yml`) installs via
 `jdx/mise-action@… with: version: 2026.6.14, cache: true`. The action installs
@@ -95,10 +94,10 @@ of the four platforms: `linux-x64`, `linux-arm64`, `macos-x64`, `macos-arm64`.
   checksum here would be unexpected, not normal.)
 - A subset additionally records a `provenance` field, reflecting the verification
   the aqua registry applies for that tool: `provenance = "github-attestations"` on
-  `uv`, `golangci-lint`, and `python`; `provenance = "cosign"` on `cosign`. The
-  remaining tools (`go`, `melange`, `apko`, `moon`) carry no `provenance` field. Do
-  **not** claim every tool is attestation-verified; the always-on guarantees are the
-  pinned `url` and the `checksum`.
+  `uv`, `cli`, `golangci-lint`, `goreleaser`, and `python`; `provenance = "cosign"`
+  on `cosign`. The remaining tools (`go`, `mockery`, `moon`, and `syft`) carry no
+  `provenance` field. Do **not** claim every tool is attestation-verified; the
+  always-on guarantees are the pinned `url` and the `checksum`.
 
 ## Bumping a tool (the canonical operation)
 
@@ -138,7 +137,7 @@ mise trust --all      # trust this dir and its parents
 mise trust --show     # inspect trust status without changing it
 ```
 
-The main checkout `/Users/josh/code/meigma/template-go` is already trusted.
+The main checkout `/Users/josh/code/componere/incus-spire-attestor` is already trusted.
 
 ## Inspection / read-only ops
 
@@ -160,13 +159,6 @@ mise exec -- golangci-lint version   # run a pinned tool ad hoc, no shell activa
 - `mise.local.toml` / `.mise.local.toml` are gitignored per-developer overrides.
   Never commit them and never put project pins there — project pins belong in the
   committed `mise.toml`.
-- `mise.toml` and `mise.lock` are committed and authoritative; the gitignored
-  `melange*.rsa*`, `melange-vars.yaml`, `.melange-vars.local.yaml`, and the
-  `packages/`/`image.tar` artifacts come from `mise run image-local` and must stay
-  uncommitted (see the `melange`/`apko` skills).
-- `[tasks.image-local]` passes `--runner docker` to melange (melange needs a Linux
-  build sandbox) and loads/retags the host-arch image into Docker as
-  `template-go:dev`. Docker must be running on macOS.
 
 ## Command reference
 
