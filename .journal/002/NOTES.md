@@ -66,3 +66,7 @@ PR #8 CI and GitHub Pages checks passed. GitHub reports the pull request as clea
 ## 2026-08-25 11:13 — Phase 1 merged
 PR #8 passed review and CI and was squash-merged into `master` as `5f9ba223f6693a6c242f895badba01b0b7d456f1`.
 Next: implement PLAN.md Phase 2 application ports and services from the updated default branch.
+
+## 2026-08-25 11:19 — Phase 2 application work started
+Created `feat/phase-2-applications` from merged `master`, added deterministic Mockery v3 configuration, and split Phase 2 into isolated `agent/phase2-agent` and `agent/phase2-server` worktrees.
+Two Programmer agents own the complete `internal/agent` and `internal/server` slices. A bounded Reviewer is checking the fixed consumer-owned ports, timeout/cancellation behavior, resolution semantics, random challenge construction, cleanup precedence, and Phase 3 adapter compatibility while implementation proceeds.
