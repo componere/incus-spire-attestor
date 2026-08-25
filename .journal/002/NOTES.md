@@ -156,3 +156,6 @@ Three Programmer agents implemented disjoint slices. Three bounded Review agents
 Verification passed: `mise exec -- moon run root:check`, five `.github/scripts/test_configure_github_repo.py` tests, `git diff --check`, and the required repository-wide placeholder search. Browser verification loaded the built MkDocs site, followed navigation from Home to Deploy, Configuration, and Security model, and confirmed the configuration fields, exclusive-residency limitation, and Incus `can_edit` warning.
 
 Next: commit the integrated review fixes, push `feat/phase-6-docs`, and open the Phase 6 pull request.
+
+## 2026-08-25 15:27 — Phase 6 pull request opened
+Pushed `feat/phase-6-docs` at `7560f82` and opened PR #13, `docs: add product documentation and remove template remnants`: https://github.com/componere/incus-spire-attestor/pull/13. GitHub reports the pull request mergeable. CI and GitHub Pages checks passed; the deploy job correctly skipped for the pull request.
