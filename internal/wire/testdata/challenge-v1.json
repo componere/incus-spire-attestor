@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "challenge": {
+    "type": "incus-config-nonce",
+    "version": 1,
+    "data": {
+      "config_key": "user.spire.attestor.nonce.0123456789abcdef0123456789abcdef"
+    }
+  }
+}
