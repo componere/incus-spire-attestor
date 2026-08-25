@@ -50,3 +50,9 @@ Review round surfaced and fixed: no enforceable server-side deadline on the chal
 Complexity round cut: Configure generation/lease/retirement subsystem (→ atomic pointer snapshot), evidence handler registry (→ direct v1 type switch), global admission semaphore, nonce-residue scavenger (residue is inert; maintenance note only), release-checklist/test-inventory bloat, design-history appendix.
 Final doc: .journal/001/ARCHITECTURE.md (~4 pages). Key decisions: JSON wire v1 with strict bounded codecs, evidence array seam for v2/v3, agent ID = lowercase volatile.uuid, can_reattest=true, no AgentStore/TOFU, selectors from API snapshot only (project/name/location/uuid/profile/user.*), fail-closed on Incus API unavailability.
 Next: user review of ARCHITECTURE.md, then implementation.
+
+## 2026-08-24 21:20 — Implementation plan produced
+User approved ARCHITECTURE.md. Planner agent produced .journal/001/PLAN.md under a hard no-design-change constraint; verified faithful (deviations confined to 'Bounded implementer's choices' and 'Open questions').
+Plan shape: Phase 0 baseline (module rename, mockery pin) → 1 pure foundation (attest, wire, config) → 2 application flows + mocks → 3 Incus adapters (guest socket, host client v7.3) → 4 SPIRE adapters + template command cutover → 5 build/release cutover (drop melange/apko/OCI, two-binary goreleaser) → 6 docs/metadata cutover → 7 full local verification + release rehearsal → 8 sandbox e2e on sandbox01 (live SPIRE + spike VM, negative cases, cleanup checks).
+Notable open questions: can_edit credential scoping for deployment review; timeout tuning; repo license (template ships none but release metadata claims Apache-2.0 OR MIT) — resolve before publishing releases; whether sandbox01 needs SPIRE provisioning for Phase 8.
+Next: begin implementation per PLAN.md in an implementation worktree.
