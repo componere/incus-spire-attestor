@@ -335,6 +335,13 @@ func TestMatchClaimsRejectsMissingRequiredInstanceFields(t *testing.T) {
 		mutate func(Instance) Instance
 	}{
 		{
+			name: "missing instance project",
+			mutate: func(inst Instance) Instance {
+				inst.Project = ""
+				return inst
+			},
+		},
+		{
 			name: "missing instance name",
 			mutate: func(inst Instance) Instance {
 				inst.Name = ""

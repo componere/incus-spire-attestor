@@ -1,7 +1,6 @@
 package attest
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +46,7 @@ func TestNewNonceRejectsWrongLength(t *testing.T) {
 
 			got, err := NewNonce(tt.input)
 			require.Error(t, err, "nonce construction must require exactly 16 bytes")
-			assert.False(t, errors.Is(err, ErrDenied), "constructor failures must be contextual plain errors")
+			require.NotErrorIs(t, err, ErrDenied, "constructor failures must be contextual plain errors")
 			assert.Equal(t, Nonce{}, got)
 		})
 	}

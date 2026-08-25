@@ -14,12 +14,9 @@ const maxSelectorValueBytes = 32768
 
 // BuildAttributes derives the agent ID and selectors from instance only.
 func BuildAttributes(trustDomain string, instance Instance, userSelectors []string) (Attributes, error) {
-	if err := requireVirtualMachine(instance.Type, "api"); err != nil {
-		return Attributes{}, err
-	}
-	id, err := NewInstanceUUID(string(instance.UUID))
+	id, err := validateInstance(instance)
 	if err != nil {
-		return Attributes{}, fmt.Errorf("%w: %v", ErrDenied, err)
+		return Attributes{}, err
 	}
 
 	selectors, err := buildSelectors(instance, id, userSelectors)

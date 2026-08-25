@@ -3,6 +3,7 @@ package attest
 import (
 	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"fmt"
 )
 
@@ -21,11 +22,11 @@ func NewConfigKey(raw string) (ConfigKey, error) {
 		return "", fmt.Errorf("invalid config key length %d", len(raw))
 	}
 	if raw[:len(configKeyPrefix)] != configKeyPrefix {
-		return "", fmt.Errorf("invalid config key prefix")
+		return "", errors.New("invalid config key prefix")
 	}
 	for i := len(configKeyPrefix); i < len(raw); i++ {
 		if !isLowerHex(raw[i]) {
-			return "", fmt.Errorf("invalid config key suffix")
+			return "", errors.New("invalid config key suffix")
 		}
 	}
 	return ConfigKey(raw), nil

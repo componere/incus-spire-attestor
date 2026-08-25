@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	testTrustDomain  = "example.org"
-	maxSelectors     = 100
-	maxSelectorBytes = 32768
+	testTrustDomain           = "example.org"
+	testMaxSelectors          = 100
+	testMaxSelectorValueBytes = 32768
 )
 
 func attributeInstance() Instance {
@@ -35,7 +35,10 @@ func attributeInstance() Instance {
 func selectorValueBytes(selectors []string) int {
 	n := 0
 	for _, selector := range selectors {
-		n += len(selector)
+		index := strings.IndexByte(selector, ':')
+		if index >= 0 {
+			n += len(selector) - index - 1
+		}
 	}
 	return n
 }
@@ -129,7 +132,10 @@ func TestBuildAttributesRejectsReservedNonceSelectorKeys(t *testing.T) {
 		{name: "exact reserved prefix", key: configKeyPrefix},
 		{name: "reserved prefix with hex suffix", key: validConfigKey()},
 		{name: "reserved prefix with extra segment", key: configKeyPrefix + "extra"},
-		{name: "reserved prefix absent from expanded config", key: configKeyPrefix + "deadbeefdeadbeefdeadbeefdeadbeef"},
+		{
+			name: "reserved prefix absent from expanded config",
+			key:  configKeyPrefix + "deadbeefdeadbeefdeadbeefdeadbeef",
+		},
 	}
 
 	for _, tt := range tests {
@@ -175,8 +181,8 @@ func TestBuildAttributesEnforcesSelectorCountBounds(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.LessOrEqual(t, len(got.Selectors), maxSelectors)
-			assert.Equal(t, 4+tt.profileCount, len(got.Selectors))
+			assert.LessOrEqual(t, len(got.Selectors), testMaxSelectors)
+			assert.Len(t, got.Selectors, 4+tt.profileCount)
 		})
 	}
 }
@@ -189,9 +195,9 @@ func TestBuildAttributesEnforcesSelectorByteBounds(t *testing.T) {
 		total   int
 		wantErr bool
 	}{
-		{name: "below 32768 UTF-8 bytes", total: maxSelectorBytes - 1, wantErr: false},
-		{name: "exactly 32768 UTF-8 bytes", total: maxSelectorBytes, wantErr: false},
-		{name: "above 32768 UTF-8 bytes", total: maxSelectorBytes + 1, wantErr: true},
+		{name: "below 32768 UTF-8 bytes", total: testMaxSelectorValueBytes - 1, wantErr: false},
+		{name: "exactly 32768 UTF-8 bytes", total: testMaxSelectorValueBytes, wantErr: false},
+		{name: "above 32768 UTF-8 bytes", total: testMaxSelectorValueBytes + 1, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -207,9 +213,14 @@ func TestBuildAttributesEnforcesSelectorByteBounds(t *testing.T) {
 				"uuid:" + canonicalUUID,
 			}
 			fixedBytes := selectorValueBytes(fixed)
-			require.Greater(t, tt.total, fixedBytes+len("user.pad:"), "test padding must leave room for the user selector")
+			require.Greater(
+				t,
+				tt.total,
+				fixedBytes,
+				"test padding must leave room for the user selector value",
+			)
 
-			padding := strings.Repeat("a", tt.total-fixedBytes-len("user.pad:"))
+			padding := strings.Repeat("a", tt.total-fixedBytes)
 			instance.ExpandedConfig = map[string]string{"user.pad": padding}
 
 			got, err := BuildAttributes(testTrustDomain, instance, []string{"user.pad"})
@@ -221,6 +232,54 @@ func TestBuildAttributesEnforcesSelectorByteBounds(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.total, selectorValueBytes(got.Selectors))
+		})
+	}
+}
+
+func TestBuildAttributesRejectsMissingRequiredInstanceFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(Instance) Instance
+	}{
+		{
+			name: "missing project",
+			mutate: func(instance Instance) Instance {
+				instance.Project = ""
+				return instance
+			},
+		},
+		{
+			name: "missing name",
+			mutate: func(instance Instance) Instance {
+				instance.Name = ""
+				return instance
+			},
+		},
+		{
+			name: "missing location",
+			mutate: func(instance Instance) Instance {
+				instance.Location = ""
+				return instance
+			},
+		},
+		{
+			name: "missing cloud-init ID",
+			mutate: func(instance Instance) Instance {
+				instance.CloudInitID = ""
+				return instance
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := BuildAttributes(testTrustDomain, tt.mutate(attributeInstance()), nil)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrDenied)
 		})
 	}
 }
