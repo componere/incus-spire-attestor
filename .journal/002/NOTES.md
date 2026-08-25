@@ -139,3 +139,7 @@ Pushed `feat/phase-5-build-release` at `ad451a8` and opened PR #12, `build(relea
 
 ## 2026-08-25 14:58 — Phase 5 pull request checks passed
 PR #12 passed CI, GitHub Pages, and Trivy checks. The pull request remains mergeable and ready for review.
+
+## 2026-08-25 15:01 — Phase 5 merged
+PR #12 was squash-merged into `master` as `83c786b3910b8856d76a1e1117dc2b4540f3b7da`.
+Next: complete PLAN.md Phase 6 user documentation and remove remaining template-facing repository metadata.
