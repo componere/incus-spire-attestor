@@ -1,0 +1,20 @@
+template: testify
+packages:
+  github.com/componere/incus-spire-attestor/internal/agent:
+    config:
+      dir: "{{.InterfaceDir}}/mocks"
+      filename: "{{.InterfaceName}}.go"
+      pkgname: mocks
+      structname: "Mock{{.InterfaceName}}"
+    interfaces:
+      GuestEvidence:
+      Exchange:
+  github.com/componere/incus-spire-attestor/internal/server:
+    config:
+      dir: "{{.InterfaceDir}}/mocks"
+      filename: "{{.InterfaceName}}.go"
+      pkgname: mocks
+      structname: "Mock{{.InterfaceName}}"
+    interfaces:
+      Incus:
+      Exchange:
