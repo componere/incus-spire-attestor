@@ -52,54 +52,6 @@ url = "https://github.com/astral-sh/uv/releases/download/0.11.0/uv-x86_64-apple-
 url_api = "https://api.github.com/repos/astral-sh/uv/releases/assets/380020610"
 provenance = "github-attestations"
 
-[[tools."aqua:chainguard-dev/apko"]]
-version = "1.2.37"
-backend = "aqua:chainguard-dev/apko"
-
-[tools."aqua:chainguard-dev/apko"."platforms.linux-arm64"]
-checksum = "sha256:43e94fcda75df76e0b9fe78a98b2277ce4cc7eabe246e02df7c6f52c75b50f5d"
-url = "https://github.com/chainguard-dev/apko/releases/download/v1.2.37/apko_1.2.37_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/chainguard-dev/apko/releases/assets/517375968"
-
-[tools."aqua:chainguard-dev/apko"."platforms.linux-x64"]
-checksum = "sha256:9fa4ed893d0d87483a5f709fd5e2f1a1e6f93e40b35195949df2d9cf4f7093cc"
-url = "https://github.com/chainguard-dev/apko/releases/download/v1.2.37/apko_1.2.37_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/chainguard-dev/apko/releases/assets/517375966"
-
-[tools."aqua:chainguard-dev/apko"."platforms.macos-arm64"]
-checksum = "sha256:097ebf8e1f19278bca2e5fd788b7df002b40f25b2cbcda90165e5b78982b8c5b"
-url = "https://github.com/chainguard-dev/apko/releases/download/v1.2.37/apko_1.2.37_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/chainguard-dev/apko/releases/assets/517375993"
-
-[tools."aqua:chainguard-dev/apko"."platforms.macos-x64"]
-checksum = "sha256:7edc3c7c5839b7c8352c78e11f510537ff261f0bdcaf7b70c8fe985a1e3d5119"
-url = "https://github.com/chainguard-dev/apko/releases/download/v1.2.37/apko_1.2.37_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/chainguard-dev/apko/releases/assets/517375996"
-
-[[tools."aqua:chainguard-dev/melange"]]
-version = "0.59.1"
-backend = "aqua:chainguard-dev/melange"
-
-[tools."aqua:chainguard-dev/melange"."platforms.linux-arm64"]
-checksum = "sha256:aa5d221f92a248ba9aa490d1441c733417ad4c02f32fa9a13b8800acb42946f9"
-url = "https://github.com/chainguard-dev/melange/releases/download/v0.59.1/melange_0.59.1_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/chainguard-dev/melange/releases/assets/514836314"
-
-[tools."aqua:chainguard-dev/melange"."platforms.linux-x64"]
-checksum = "sha256:90f76f3e5fcb90ddc4c932ad352982bda98d58001d2bcccb982dd7fb2e608a1f"
-url = "https://github.com/chainguard-dev/melange/releases/download/v0.59.1/melange_0.59.1_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/chainguard-dev/melange/releases/assets/514836359"
-
-[tools."aqua:chainguard-dev/melange"."platforms.macos-arm64"]
-checksum = "sha256:6485fcff49ca60fc3f75a773eb1f7f81562cf394b86cc9fe8371f7d55e8f9b98"
-url = "https://github.com/chainguard-dev/melange/releases/download/v0.59.1/melange_0.59.1_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/chainguard-dev/melange/releases/assets/514836312"
-
-[tools."aqua:chainguard-dev/melange"."platforms.macos-x64"]
-checksum = "sha256:0a1080caa973c9a10b9e331542e927531710810647c4f3b9ec9e53bf22f2e960"
-url = "https://github.com/chainguard-dev/melange/releases/download/v0.59.1/melange_0.59.1_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/chainguard-dev/melange/releases/assets/514836357"
-
 [[tools."aqua:cli/cli"]]
 version = "2.97.0"
 backend = "aqua:cli/cli"
