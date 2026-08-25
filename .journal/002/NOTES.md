@@ -95,3 +95,6 @@ Implemented `internal/incus/guest` with a real Unix-socket HTTP transport, bound
 Correction to the 12:22 note: pinned v7.3 `ProtocolIncus.WithContext` mutates its receiver rather than cloning it. Each host operation must call `UseProject` first to obtain a real clone and then apply `WithContext` through the package-private contextual seam; calling `WithContext` on the shared runtime client would race concurrent attestations.
 
 The bounded contract review found and corrected this context-order issue plus guest metadata precedence and exact status classification before implementation completed. Two bounded package reviews and re-reviews report both adapters PR-ready with all findings resolved. Verification passed: `go mod tidy`, `go test ./...`, `go test -race ./internal/incus/guest/... ./internal/incus/host/...`, `golangci-lint run --config .golangci.yml ./...`, and `git diff --check`.
+
+## 2026-08-25 13:11 — Phase 3 pull request opened
+Committed the reviewed adapter integration as `ea0399a` and opened PR #10, `feat(incus): add guest and host adapters`: https://github.com/componere/incus-spire-attestor/pull/10. GitHub reports the pull request mergeable; CI and GitHub Pages checks started.
