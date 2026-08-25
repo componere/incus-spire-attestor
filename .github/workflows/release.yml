@@ -15,49 +15,140 @@ jobs:
   release-assets:
     name: Build release assets
     if: github.event.deleted == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       attestations: read
       contents: read
       id-token: write
-    uses: meigma/release/.github/workflows/go-pre-publish.yml@0dee66ff6c4cc7e28d7bb65e97a37d701e0eff4a
-    with:
-      sign-and-notarize-macos: false
-      sign-native-packages: false
+    env:
+      GOTOOLCHAIN: local
+      MISE_EXEC_AUTO_INSTALL: 'false'
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      artifact-digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - name: Require a tag ref
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" != 'tag' ]]; then
+            echo '::error::Release asset staging must run against a tag ref.'
+            exit 1
+          fi
 
-  oci-image:
-    name: Build OCI image
-    needs: release-assets
-    permissions:
-      actions: read
-      attestations: read
-      contents: read
-    uses: meigma/release/.github/workflows/go-oci-build.yml@0dee66ff6c4cc7e28d7bb65e97a37d701e0eff4a
-    with:
-      artifact-id: ${{ needs.release-assets.outputs.oci-input-artifact-id }}
-      artifact-digest: ${{ needs.release-assets.outputs.oci-input-artifact-digest }}
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-  oci-publish:
-    name: Publish OCI image
-    needs: oci-image
-    permissions:
-      actions: read
-      artifact-metadata: write
-      attestations: write
-      contents: read
-      id-token: write
-      packages: write
-    uses: meigma/release/.github/workflows/publish-oci-image.yml@0dee66ff6c4cc7e28d7bb65e97a37d701e0eff4a
-    with:
-      artifact-id: ${{ needs.oci-image.outputs.artifact-id }}
-      artifact-digest: ${{ needs.oci-image.outputs.artifact-digest }}
-      image-digest: ${{ needs.oci-image.outputs.image-digest }}
-      publish-image: true
+      - name: Setup mise
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        with:
+          version: 2026.8.8
+          install_args: >-
+            go
+            aqua:goreleaser/goreleaser
+            aqua:anchore/syft
+            aqua:sigstore/cosign
+          cache: true
+          add_shims_to_path: false
+          export_path: false
+
+      - name: Verify Go release tools
+        shell: bash
+        run: |
+          mise exec -- bash -euo pipefail -c '
+            for tool in go goreleaser syft cosign; do
+              active=$(command -v "${tool}")
+              managed=$(mise which "${tool}")
+              test "$(realpath "${active}")" = "$(realpath "${managed}")"
+              printf "Using %s: %s\n" "${tool}" "${active}"
+            done
+            go version
+          '
+
+      - name: Stage Go release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise exec -- goreleaser release --clean --skip=publish
+
+      - name: Assemble closed release-assets bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f dist/checksums.txt ]]; then
+            echo '::error::GoReleaser did not write dist/checksums.txt.'
+            exit 1
+          fi
+          if [[ ! -f dist/checksums.txt.sigstore.json ]]; then
+            echo '::error::GoReleaser did not write dist/checksums.txt.sigstore.json.'
+            exit 1
+          fi
+
+          rm -rf release-assets
+          mkdir -p release-assets
+          cp dist/checksums.txt dist/checksums.txt.sigstore.json release-assets/
+
+          declare -A raw_binary_paths=()
+          raw_binary_count=0
+          while IFS=$'\t' read -r path name; do
+            if [[ ! -f "${path}" ]]; then
+              echo "::error::Missing GoReleaser binary payload ${path}."
+              exit 1
+            fi
+            raw_binary_paths["${name}"]="${path}"
+            ((raw_binary_count += 1))
+          done < <(
+            jq -r '
+              .[]
+              | select(.type == "Binary" and .name != .extra.Binary)
+              | [.path, .name]
+              | @tsv
+            ' dist/artifacts.json
+          )
+          if [[ "${raw_binary_count}" -ne 4 ]]; then
+            echo "::error::Expected four raw binary payloads, found ${raw_binary_count}."
+            exit 1
+          fi
+
+          while IFS= read -r line || [[ -n "${line}" ]]; do
+            [[ -z "${line}" || "${line}" == \#* ]] && continue
+            name="${line##* }"
+            if [[ -z "${name}" || "${name}" == "${line}" ]]; then
+              echo "::error::Malformed checksums.txt entry: ${line}"
+              exit 1
+            fi
+            if [[ "${name}" == */* ]]; then
+              echo "::error::Checksum payload ${name} is not a flat filename."
+              exit 1
+            fi
+            path="dist/${name}"
+            if [[ ! -f "${path}" ]]; then
+              path="${raw_binary_paths["${name}"]:-}"
+            fi
+            if [[ -z "${path}" || ! -f "${path}" ]]; then
+              echo "::error::Missing checksum payload ${name}."
+              exit 1
+            fi
+            cp "${path}" "release-assets/${name}"
+          done < dist/checksums.txt
+
+      - name: Upload authoritative release assets
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: release-assets
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
   github-release:
     name: Publish GitHub Release
     needs:
       - release-assets
-      - oci-publish
     permissions:
       actions: read
       artifact-metadata: write
@@ -68,9 +159,8 @@ jobs:
     with:
       artifact-id: ${{ needs.release-assets.outputs.artifact-id }}
       artifact-digest: ${{ needs.release-assets.outputs.artifact-digest }}
-      checksum-signing-workflow-ref: meigma/release/.github/workflows/go-pre-publish.yml@0dee66ff6c4cc7e28d7bb65e97a37d701e0eff4a
-      require-oci-image: true
-      oci-image-reference: ${{ needs.oci-publish.outputs.image-reference }}
+      checksum-signing-workflow-ref: ${{ github.repository }}/.github/workflows/release.yml@${{ github.ref }}
+      require-oci-image: false
       release-app-client-id: ${{ vars.MEIGMA_RELEASE_APP_CLIENT_ID }}
       publish-release: true
     secrets:

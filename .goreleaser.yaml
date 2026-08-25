@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
-project_name: template-go
+project_name: incus-spire-attestor
 
 gomod:
   proxy: true
@@ -11,15 +11,13 @@ gomod:
     - GOSUMDB=sum.golang.org
 
 builds:
-  - id: template-go
-    main: ./cmd/template-go
-    binary: template-go
+  - id: incus-agent
+    main: ./cmd/incus-agent
+    binary: incus-agent
     env:
       - CGO_ENABLED=0
     goos:
-      - darwin
       - linux
-      - windows
     goarch:
       - amd64
       - arm64
@@ -27,48 +25,43 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -buildid=
-      - -X main.version={{ .Version }}
-      - -X main.commit={{ .FullCommit }}
-      - -X main.date={{ .CommitDate }}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
-notarize:
-  macos:
-    - enabled: '{{ eq .Env.MACOS_NOTARIZE_ENABLED "true" }}'
-      ids:
-        - template-go
-      sign:
-        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
-        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
-      notarize:
-        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
-        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
-        key: "{{ .Env.MACOS_NOTARY_KEY }}"
-        wait: true
-        timeout: 20m
+  - id: incus-server
+    main: ./cmd/incus-server
+    binary: incus-server
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -buildid=
+    mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - id: template-go
+  - id: binaries
     ids:
-      - template-go
+      - incus-agent
+      - incus-server
     formats:
-      - tar.gz
-    format_overrides:
-      - goos: windows
-        formats:
-          - zip
-    name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+      - binary
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 nfpms:
   - id: release
     ids:
-      - template-go
-    vendor: Meigma
-    homepage: https://github.com/meigma/template-go
-    maintainer: Meigma
-    description: Meigma Go repository template application.
-    license: Apache-2.0 OR MIT
+      - incus-agent
+      - incus-server
+    package_name: incus-spire-attestor
+    vendor: Componere
+    homepage: https://github.com/componere/incus-spire-attestor
+    maintainer: Componere
+    description: SPIRE node attestor plugins for Incus virtual machines.
     formats:
       - deb
       - rpm
@@ -76,47 +69,18 @@ nfpms:
     bindir: /usr/bin
     rpm:
       signature:
-        key_file: "{{ .Env.RELEASE_RPM_SIGNING_KEY_FILE }}"
+        key_file: '{{ envOrDefault "RELEASE_RPM_SIGNING_KEY_FILE" "" }}'
     apk:
       signature:
-        key_file: "{{ .Env.RELEASE_APK_SIGNING_KEY_FILE }}"
-        key_name: template-go-001
-
-homebrew_casks:
-  - name: template-go
-    ids:
-      - template-go
-    binaries:
-      - template-go
-    repository:
-      owner: meigma
-      name: homebrew-tap
-    homepage: https://github.com/meigma/template-go
-    description: Meigma Go repository template application
-    license: Apache-2.0 OR MIT
-    url:
-      template: "https://github.com/meigma/template-go/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    skip_upload: true
-
-scoops:
-  - name: template-go
-    ids:
-      - template-go
-    repository:
-      owner: meigma
-      name: scoop-bucket
-    homepage: https://github.com/meigma/template-go
-    description: Meigma Go repository template application
-    license: Apache-2.0 OR MIT
-    url_template: "https://github.com/meigma/template-go/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    skip_upload: true
+        key_file: '{{ envOrDefault "RELEASE_APK_SIGNING_KEY_FILE" "" }}'
+        key_name: incus-spire-attestor-001
 
 checksum:
   name_template: checksums.txt
 
 sboms:
-  - id: archives
-    artifacts: archive
+  - id: binaries
+    artifacts: binary
   - id: packages
     artifacts: package
 
