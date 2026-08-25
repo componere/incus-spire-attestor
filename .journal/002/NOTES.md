@@ -83,3 +83,8 @@ GitHub CI and GitHub Pages checks passed. GitHub reports the pull request as cle
 ## 2026-08-25 12:15 — Phase 2 merged
 PR #9 passed review and CI and was squash-merged into `master` as `17f66e6fef6799cb27ea664d08f95fc57076b262`.
 Next: implement PLAN.md Phase 3 Incus guest and host adapters from the updated default branch.
+
+## 2026-08-25 12:22 — Phase 3 Incus adapter work started
+Created `feat/phase-3-incus-adapters` from merged `master` and isolated `agent/phase3-guest` and `agent/phase3-host` worktrees. Two Programmer agents own the independent guest Unix-socket and host Incus v7.3 adapter slices; one bounded Reviewer is checking the fixed contract while implementation proceeds.
+
+Grounded the guest contract against Incus v7.3 `dev-incus` documentation: `/1.0` is raw JSON, `/1.0/meta-data` is plain cloud-init metadata, config values are plain text, and the instance name comes from `local-hostname`. Grounded host construction against the pinned client source: loaded CA material maps to `ConnectionArgs.TLSCA`, per-operation contexts require concrete `ProtocolIncus.WithContext`, and idle replacement closes only the underlying HTTP client's idle connections.
