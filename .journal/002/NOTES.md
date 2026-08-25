@@ -102,3 +102,6 @@ Committed the reviewed adapter integration as `ea0399a` and opened PR #10, `feat
 ## 2026-08-25 13:16 — Phase 3 merged
 PR #10 passed CI and GitHub Pages checks and was squash-merged into `master` as `ce79ffd408a7be28e790258992ab8f9203a04257`.
 Next: complete PLAN.md Phase 4 plugin entrypoints and configuration registration from the updated default branch.
+
+## 2026-08-25 13:29 — Phase 4 SPIRE service work started
+Created `feat/phase-4-spire-services` from merged `master` and isolated four bounded Programmer worktrees for shared immutable runtime/config construction, agent SDK translation, server SDK translation, and command cutover. The fixed contract requires Config Validate to remain side-effect free; Configure to serialize complete runtime builds and publish one atomic snapshot; attestation RPCs to load one snapshot; the server receive deadline to use one handler-local goroutine; superseded server clients to close idle connections only; and template CLI/Cobra/Viper code to be removed without compatibility aliases.
