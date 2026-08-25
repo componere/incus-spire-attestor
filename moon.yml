@@ -57,11 +57,12 @@ tasks:
       cache: false
 
   build:
-    command: 'go build -o bin/template-go ./cmd/template-go'
+    script: 'go build -o bin/incus-agent ./cmd/incus-agent && go build -o bin/incus-server ./cmd/incus-server'
     inputs:
       - '@group(goSources)'
     outputs:
-      - 'bin/template-go'
+      - 'bin/incus-agent'
+      - 'bin/incus-server'
 
   test:
     command: 'go test ./...'
