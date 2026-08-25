@@ -19,3 +19,7 @@ Correction to the 09:20 entry: the first self-verifying slice is Phase 0.1 plus 
 Architecture review: no blocker for this first slice. Before later phases, define the cross-package `GuestEvidence` absence/transience result, correct Incus client context propagation so concurrent calls do not mutate a shared client, reconcile the guest instance-name source/parsing rule, and make the Phase 2-to-3 dependency edges explicit.
 Implementation: module and internal imports now use `github.com/componere/incus-spire-attestor`; goimports uses the same local prefix; Go remains 1.26.6; mockery 3.7.4 is pinned through the aqua backend with checksummed locks for Linux/macOS on amd64/arm64. Two Programmer agents implemented isolated sub-slices; bounded design and code reviewers assessed them.
 Verification: `go test ./...` passed, `golangci-lint fmt --config .golangci.yml --diff` was empty, `go mod tidy` produced no diff, `mise lock --platform linux-x64,linux-arm64,macos-x64,macos-arm64` reproduced the lock with no diff, and `mockery version` returned v3.7.4. The implementation branch is clean and tracks no `.journal` files.
+
+## 2026-08-25 09:28 — Pull request opened
+Pushed `feat/phase-0-baseline` and opened PR #6, `chore: establish phase 0 project baseline`: https://github.com/componere/incus-spire-attestor/pull/6
+Session 002 remains in progress for the next implementation slice.
