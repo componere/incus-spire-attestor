@@ -147,3 +147,12 @@ Next: complete PLAN.md Phase 6 user documentation and remove remaining template-
 ## 2026-08-25 15:06 — Phase 6 contract and slices bounded
 Reviewed PLAN.md Phase 6 against the merged implementation and repository state. Three disjoint programmer slices own root repository documentation and `DELETE_ME.md` removal, the MkDocs site and docs tool metadata, and GitHub repository settings/tests. The documentation must preserve API-only identity authority, the fixed `incus` plugin name, the configuration defaults and timeout margin, Incus 7.3 `can_edit` blast radius, and the limit that v1 does not prove exclusive guest residency. The absent license and supported release remain explicit in README.md and SECURITY.md rather than being invented.
 Created `feat/phase-6-docs` plus isolated `agent/phase-6-repo-docs`, `agent/phase-6-site-docs`, and `agent/phase-6-repo-settings` worktrees.
+
+## 2026-08-25 15:25 — Phase 6 documentation verified
+Completed PLAN.md Phase 6 on `feat/phase-6-docs`. Root documentation now describes the two external plugins, local contribution flow, private vulnerability reporting, absent supported release line, and absent project license without inventing either. The MkDocs site now provides deployment, configuration reference, and security-model pages with exact v1 HCL, API-authority, project resolution, identity/selectors, timeout margin, credential placement, `can_edit` blast radius, nonce response, cleanup, and trust limitations. Repository settings now set `is_template = false`; stale template onboarding, apko/melange skills, and template metadata are removed, and the mise skill reflects the current release toolchain.
+
+Three Programmer agents implemented disjoint slices. Three bounded Review agents found and re-reviewed the support-status wording, nonce stream description, project resolution and guest metadata prerequisites, and stale local skills; all findings are resolved and all reviewers report PR-ready.
+
+Verification passed: `mise exec -- moon run root:check`, five `.github/scripts/test_configure_github_repo.py` tests, `git diff --check`, and the required repository-wide placeholder search. Browser verification loaded the built MkDocs site, followed navigation from Home to Deploy, Configuration, and Security model, and confirmed the configuration fields, exclusive-residency limitation, and Incus `can_edit` warning.
+
+Next: commit the integrated review fixes, push `feat/phase-6-docs`, and open the Phase 6 pull request.
