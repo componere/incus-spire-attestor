@@ -79,3 +79,7 @@ Two bounded re-reviews report both packages PR-ready with all prior findings res
 ## 2026-08-25 12:04 — Phase 2 pull request ready
 Pushed `feat/phase-2-applications` and opened PR #9, `feat(phase2): add attestation application services`: https://github.com/componere/incus-spire-attestor/pull/9
 GitHub CI and GitHub Pages checks passed. GitHub reports the pull request as clean and mergeable.
+
+## 2026-08-25 12:15 — Phase 2 merged
+PR #9 passed review and CI and was squash-merged into `master` as `17f66e6fef6799cb27ea664d08f95fc57076b262`.
+Next: implement PLAN.md Phase 3 Incus guest and host adapters from the updated default branch.
