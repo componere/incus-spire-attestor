@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -41,10 +42,10 @@ type Service struct {
 // New constructs a Service from a validated server configuration.
 func New(client Incus, cfg config.Server, trustDomain string, random io.Reader) (*Service, error) {
 	if client == nil {
-		return nil, fmt.Errorf("incus client is required")
+		return nil, errors.New("incus client is required")
 	}
 	if random == nil {
-		return nil, fmt.Errorf("random reader is required")
+		return nil, errors.New("random reader is required")
 	}
 	if err := config.ValidateServer(cfg, trustDomain); err != nil {
 		return nil, err
@@ -64,6 +65,9 @@ func New(client Incus, cfg config.Server, trustDomain string, random io.Reader) 
 
 // Attest resolves a guest VM, challenges it with a config nonce, and emits attributes.
 func (s *Service) Attest(ctx context.Context, exchange Exchange) error {
+	if exchange == nil {
+		return errors.New("exchange is required")
+	}
 	raw, err := exchange.ReceivePayload(ctx)
 	if err != nil {
 		return fmt.Errorf("receive payload: %w", err)
@@ -72,7 +76,7 @@ func (s *Service) Attest(ctx context.Context, exchange Exchange) error {
 	if err != nil {
 		return err
 	}
-	if err := attest.ValidateClaims(claims); err != nil {
+	if err = attest.ValidateClaims(claims); err != nil {
 		return err
 	}
 
@@ -108,7 +112,7 @@ func (s *Service) Attest(ctx context.Context, exchange Exchange) error {
 	if err != nil {
 		return annotateCleanup(err, armed.run())
 	}
-	if err := exchange.SendChallenge(ctx, challenge); err != nil {
+	if err = exchange.SendChallenge(ctx, challenge); err != nil {
 		return annotateCleanup(fmt.Errorf("send challenge: %w", err), armed.run())
 	}
 
@@ -122,11 +126,11 @@ func (s *Service) Attest(ctx context.Context, exchange Exchange) error {
 	if err != nil {
 		return annotateCleanup(err, armed.run())
 	}
-	if err := attest.VerifyNonce(nonce, got[:]); err != nil {
+	if err = attest.VerifyNonce(nonce, got[:]); err != nil {
 		return annotateCleanup(err, armed.run())
 	}
 
-	if err := armed.run(); err != nil {
+	if err = armed.run(); err != nil {
 		return annotateCleanup(nil, err)
 	}
 
@@ -141,18 +145,19 @@ func (s *Service) Attest(ctx context.Context, exchange Exchange) error {
 }
 
 // readRandomPair returns independent attempt-ID and nonce values.
-func (s *Service) readRandomPair() (attemptID [randomPairBytes]byte, nonce attest.Nonce, err error) {
+func (s *Service) readRandomPair() ([randomPairBytes]byte, attest.Nonce, error) {
 	s.randomMu.Lock()
 	defer s.randomMu.Unlock()
 
-	if _, err = io.ReadFull(s.random, attemptID[:]); err != nil {
-		return attemptID, nonce, fmt.Errorf("read attempt id: %w", err)
+	var attemptID [randomPairBytes]byte
+	if _, err := io.ReadFull(s.random, attemptID[:]); err != nil {
+		return attemptID, attest.Nonce{}, fmt.Errorf("read attempt id: %w", err)
 	}
 	var raw [randomPairBytes]byte
-	if _, err = io.ReadFull(s.random, raw[:]); err != nil {
-		return attemptID, nonce, fmt.Errorf("read nonce: %w", err)
+	if _, err := io.ReadFull(s.random, raw[:]); err != nil {
+		return attemptID, attest.Nonce{}, fmt.Errorf("read nonce: %w", err)
 	}
-	nonce, err = attest.NewNonce(raw[:])
+	nonce, err := attest.NewNonce(raw[:])
 	if err != nil {
 		return attemptID, nonce, fmt.Errorf("read nonce: %w", err)
 	}

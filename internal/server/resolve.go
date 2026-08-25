@@ -40,7 +40,8 @@ func (s *Service) resolveHinted(ctx context.Context, claims attest.Claims) (atte
 
 // resolveUnhinted searches every allowed project and requires one match.
 func (s *Service) resolveUnhinted(ctx context.Context, claims attest.Claims) (attest.Instance, error) {
-	var matches []attest.Instance
+	var matched attest.Instance
+	matches := 0
 	for _, project := range s.projects {
 		instance, found, err := s.client.Lookup(ctx, project, claims.Name)
 		if err != nil {
@@ -52,11 +53,12 @@ func (s *Service) resolveUnhinted(ctx context.Context, claims attest.Claims) (at
 		if err := attest.MatchClaims(claims, instance); err != nil {
 			continue
 		}
-		matches = append(matches, instance)
+		matched = instance
+		matches++
 	}
-	switch len(matches) {
+	switch matches {
 	case 1:
-		return matches[0], nil
+		return matched, nil
 	case 0:
 		return attest.Instance{}, fmt.Errorf("%w: instance not found", attest.ErrDenied)
 	default:

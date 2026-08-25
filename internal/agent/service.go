@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -29,10 +30,10 @@ func New(evidence GuestEvidence, pollTimeout time.Duration) (*Service, error) {
 // newService constructs a Service with an injectable wait function.
 func newService(evidence GuestEvidence, pollTimeout time.Duration, wait waitFunc) (*Service, error) {
 	if evidence == nil {
-		return nil, fmt.Errorf("evidence is required")
+		return nil, errors.New("evidence is required")
 	}
 	if pollTimeout <= 0 {
-		return nil, fmt.Errorf("poll timeout must be positive")
+		return nil, errors.New("poll timeout must be positive")
 	}
 	if wait == nil {
 		wait = waitDuration
@@ -52,14 +53,14 @@ func newService(evidence GuestEvidence, pollTimeout time.Duration, wait waitFunc
 // valid exact v1 key. pollTimeout bounds only config reads and waits.
 func (s *Service) Attest(ctx context.Context, exchange Exchange) error {
 	if exchange == nil {
-		return fmt.Errorf("exchange is required")
+		return errors.New("exchange is required")
 	}
 
 	claims, err := s.evidence.Claims(ctx)
 	if err != nil {
 		return fmt.Errorf("read guest claims: %w", err)
 	}
-	if err := attest.ValidateClaims(claims); err != nil {
+	if err = attest.ValidateClaims(claims); err != nil {
 		return fmt.Errorf("validate guest claims: %w", err)
 	}
 
@@ -67,7 +68,7 @@ func (s *Service) Attest(ctx context.Context, exchange Exchange) error {
 	if err != nil {
 		return fmt.Errorf("encode payload: %w", err)
 	}
-	if err := exchange.SendPayload(ctx, payload); err != nil {
+	if err = exchange.SendPayload(ctx, payload); err != nil {
 		return fmt.Errorf("send payload: %w", err)
 	}
 
@@ -93,7 +94,7 @@ func (s *Service) Attest(ctx context.Context, exchange Exchange) error {
 	if err != nil {
 		return fmt.Errorf("encode response: %w", err)
 	}
-	if err := exchange.SendResponse(ctx, response); err != nil {
+	if err = exchange.SendResponse(ctx, response); err != nil {
 		return fmt.Errorf("send response: %w", err)
 	}
 	return nil

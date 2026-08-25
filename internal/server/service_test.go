@@ -92,19 +92,25 @@ func fill16(fill byte) [16]byte {
 	return out
 }
 
+// fillBytes returns 16 bytes initialized to fill.
+func fillBytes(fill byte) []byte {
+	value := fill16(fill)
+	return value[:]
+}
+
 func pairBytes(attempt, nonce byte) []byte {
 	buf := make([]byte, 32)
-	copy(buf[:16], fill16(attempt)[:])
-	copy(buf[16:], fill16(nonce)[:])
+	copy(buf[:16], fillBytes(attempt))
+	copy(buf[16:], fillBytes(nonce))
 	return buf
 }
 
-func pairReader(attempt, nonce byte) io.Reader {
-	return bytes.NewReader(pairBytes(attempt, nonce))
+func pairReader() io.Reader {
+	return bytes.NewReader(pairBytes(attemptFill, nonceFill))
 }
 
-func pairValues(attempt, nonceFill byte) (attest.ConfigKey, string, attest.Nonce) {
-	id := fill16(attempt)
+func pairValues() (attest.ConfigKey, string, attest.Nonce) {
+	id := fill16(attemptFill)
 	raw := fill16(nonceFill)
 	nonce, err := attest.NewNonce(raw[:])
 	if err != nil {
@@ -134,6 +140,42 @@ func mustChallenge(t *testing.T, key attest.ConfigKey) []byte {
 	return raw
 }
 
+func matchTimeout(d time.Duration) any {
+	return mock.MatchedBy(func(ctx context.Context) bool {
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			return false
+		}
+		remaining := time.Until(deadline)
+		const slack = 500 * time.Millisecond
+		return remaining > 0 && remaining <= d && remaining >= d-slack
+	})
+}
+
+func incusCtx() any {
+	return matchTimeout(validServerConfig().IncusTimeout)
+}
+
+func challengeCtx() any {
+	return matchTimeout(validServerConfig().ChallengeResponseTimeout)
+}
+
+func detachedCleanupCtx() any {
+	return mock.MatchedBy(func(ctx context.Context) bool {
+		if ctx.Err() != nil {
+			return false
+		}
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			return false
+		}
+		remaining := time.Until(deadline)
+		const slack = 500 * time.Millisecond
+		d := validServerConfig().CleanupTimeout
+		return remaining > 0 && remaining <= d && remaining >= d-slack
+	})
+}
+
 func newEnv(t *testing.T, cfg config.Server, random io.Reader) *attestEnv {
 	t.Helper()
 	incus := mocks.NewMockIncus(t)
@@ -148,23 +190,27 @@ func (e *attestEnv) expectPayload(claims attest.Claims) {
 	e.exchange.EXPECT().ReceivePayload(mock.Anything).Return(mustPayload(e.t, claims), nil).Once()
 }
 
-func (e *attestEnv) expectHintedLookup(instance attest.Instance, found bool, err error) {
+func (e *attestEnv) expectHintedLookup(instance attest.Instance) {
 	e.t.Helper()
 	e.incus.EXPECT().
-		Lookup(mock.Anything, instance.Project, instance.Name).
-		Return(instance, found, err).
+		Lookup(incusCtx(), instance.Project, instance.Name).
+		Return(instance, true, nil).
 		Once()
 }
 
-func (e *attestEnv) expectChallengeFlow(instance attest.Instance, attempt, nonce byte, recv []byte, recvErr error) (attest.ConfigKey, string) {
+func (e *attestEnv) expectChallengeFlow(
+	instance attest.Instance,
+	recv []byte,
+	recvErr error,
+) (attest.ConfigKey, string) {
 	e.t.Helper()
-	key, stored, nonceVal := pairValues(attempt, nonce)
-	e.incus.EXPECT().SetNonce(mock.Anything, instance, key, stored).Return(nil).Once()
+	key, stored, nonceVal := pairValues()
+	e.incus.EXPECT().SetNonce(incusCtx(), instance, key, stored).Return(nil).Once()
 	e.exchange.EXPECT().SendChallenge(mock.Anything, mustChallenge(e.t, key)).Return(nil).Once()
 	if recv == nil && recvErr == nil {
 		recv = mustResponse(e.t, nonceVal)
 	}
-	e.exchange.EXPECT().ReceiveResponse(mock.Anything).Return(recv, recvErr).Once()
+	e.exchange.EXPECT().ReceiveResponse(challengeCtx()).Return(recv, recvErr).Once()
 	return key, stored
 }
 
@@ -184,7 +230,7 @@ func TestNewRejectsInvalidDependencies(t *testing.T) {
 	t.Parallel()
 
 	cfg := validServerConfig()
-	random := pairReader(attemptFill, nonceFill)
+	random := pairReader()
 	client := mocks.NewMockIncus(t)
 
 	tests := []struct {
@@ -216,7 +262,7 @@ func TestNewCopiesProjectsAndSelectors(t *testing.T) {
 	cfg := validServerConfig()
 	cfg.Projects = []attest.ProjectName{testProject}
 	cfg.UserSelectors = []string{"user.role"}
-	env := newEnv(t, cfg, pairReader(attemptFill, nonceFill))
+	env := newEnv(t, cfg, pairReader())
 
 	cfg.Projects[0] = "mutated"
 	cfg.UserSelectors[0] = "user.other"
@@ -224,8 +270,8 @@ func TestNewCopiesProjectsAndSelectors(t *testing.T) {
 	claims := hintedClaims()
 	instance := validInstance()
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	key, _ := env.expectChallengeFlow(instance, attemptFill, nonceFill, nil, nil)
+	env.expectHintedLookup(instance)
+	key, _ := env.expectChallengeFlow(instance, nil, nil)
 	env.expectCleanup(instance, key, nil)
 	env.expectAttributes(instance, []string{"user.role"})
 
@@ -235,31 +281,31 @@ func TestNewCopiesProjectsAndSelectors(t *testing.T) {
 func TestAttestHintedLookupSucceeds(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	key, stored := env.expectChallengeFlow(instance, attemptFill, nonceFill, nil, nil)
+	env.expectHintedLookup(instance)
+	key, stored := env.expectChallengeFlow(instance, nil, nil)
 	env.expectCleanup(instance, key, nil)
 	env.expectAttributes(instance, validServerConfig().UserSelectors)
 
 	require.NoError(t, env.service.Attest(context.Background(), env.exchange))
 	assert.Equal(t, attest.NewConfigKeyFromAttemptID(fill16(attemptFill)), key)
-	assert.Equal(t, base64.RawURLEncoding.EncodeToString(fill16(nonceFill)[:]), stored)
+	assert.Equal(t, base64.RawURLEncoding.EncodeToString(fillBytes(nonceFill)), stored)
 }
 
 func TestAttestDeniesHintedProjectOutsideAllowlist(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	claims.Project = "forbidden"
 	env.expectPayload(claims)
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, attest.ErrDenied)
+	require.ErrorIs(t, err, attest.ErrDenied)
 	env.incus.AssertNotCalled(t, "Lookup", mock.Anything, mock.Anything, mock.Anything)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 }
@@ -267,15 +313,15 @@ func TestAttestDeniesHintedProjectOutsideAllowlist(t *testing.T) {
 func TestAttestDeniesHintedInstanceNotFound(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	env.expectPayload(claims)
-	env.incus.EXPECT().Lookup(mock.Anything, claims.Project, claims.Name).
+	env.incus.EXPECT().Lookup(incusCtx(), claims.Project, claims.Name).
 		Return(attest.Instance{}, false, nil).Once()
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, attest.ErrDenied)
+	require.ErrorIs(t, err, attest.ErrDenied)
 	env.incus.AssertNotCalled(t, "SetNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 }
@@ -283,16 +329,16 @@ func TestAttestDeniesHintedInstanceNotFound(t *testing.T) {
 func TestAttestDeniesHintedClaimMismatch(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
 	instance.Location = "other-node"
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
+	env.expectHintedLookup(instance)
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, attest.ErrDenied)
+	require.ErrorIs(t, err, attest.ErrDenied)
 	env.incus.AssertNotCalled(t, "SetNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 }
@@ -300,14 +346,14 @@ func TestAttestDeniesHintedClaimMismatch(t *testing.T) {
 func TestAttestRejectsGuestClaimsBeforeLookup(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	claims.Type = "container"
 	env.expectPayload(claims)
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, attest.ErrDenied)
+	require.ErrorIs(t, err, attest.ErrDenied)
 	env.incus.AssertNotCalled(t, "Lookup", mock.Anything, mock.Anything, mock.Anything)
 	env.incus.AssertNotCalled(t, "SetNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
@@ -316,7 +362,7 @@ func TestAttestRejectsGuestClaimsBeforeLookup(t *testing.T) {
 func TestAttestNoHintSearchesEveryProjectIncludingNonmatchingFound(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := validClaims()
 	mismatch := validInstance()
 	mismatch.Project = testProject
@@ -325,11 +371,11 @@ func TestAttestNoHintSearchesEveryProjectIncludingNonmatchingFound(t *testing.T)
 	match.Project = testOpsProject
 
 	env.expectPayload(claims)
-	env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testProject), claims.Name).
+	env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testProject), claims.Name).
 		Return(mismatch, true, nil).Once()
-	env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testOpsProject), claims.Name).
+	env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testOpsProject), claims.Name).
 		Return(match, true, nil).Once()
-	key, _ := env.expectChallengeFlow(match, attemptFill, nonceFill, nil, nil)
+	key, _ := env.expectChallengeFlow(match, nil, nil)
 	env.expectCleanup(match, key, nil)
 	env.expectAttributes(match, validServerConfig().UserSelectors)
 
@@ -339,17 +385,17 @@ func TestAttestNoHintSearchesEveryProjectIncludingNonmatchingFound(t *testing.T)
 func TestAttestNoHintContinuesThroughNotFound(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := validClaims()
 	match := validInstance()
 	match.Project = testOpsProject
 
 	env.expectPayload(claims)
-	env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testProject), claims.Name).
+	env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testProject), claims.Name).
 		Return(attest.Instance{}, false, nil).Once()
-	env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testOpsProject), claims.Name).
+	env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testOpsProject), claims.Name).
 		Return(match, true, nil).Once()
-	key, _ := env.expectChallengeFlow(match, attemptFill, nonceFill, nil, nil)
+	key, _ := env.expectChallengeFlow(match, nil, nil)
 	env.expectCleanup(match, key, nil)
 	env.expectAttributes(match, validServerConfig().UserSelectors)
 
@@ -359,16 +405,16 @@ func TestAttestNoHintContinuesThroughNotFound(t *testing.T) {
 func TestAttestNoHintCompletesSearchAfterMatch(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := validClaims()
 	match := validInstance()
 
 	env.expectPayload(claims)
-	env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testProject), claims.Name).
+	env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testProject), claims.Name).
 		Return(match, true, nil).Once()
-	env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testOpsProject), claims.Name).
+	env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testOpsProject), claims.Name).
 		Return(attest.Instance{}, false, nil).Once()
-	key, _ := env.expectChallengeFlow(match, attemptFill, nonceFill, nil, nil)
+	key, _ := env.expectChallengeFlow(match, nil, nil)
 	env.expectCleanup(match, key, nil)
 	env.expectAttributes(match, validServerConfig().UserSelectors)
 
@@ -379,16 +425,16 @@ func TestAttestNoHintAbortsOperationalLookupError(t *testing.T) {
 	t.Parallel()
 
 	opErr := errors.New("unauthorized")
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := validClaims()
 	env.expectPayload(claims)
-	env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testProject), claims.Name).
+	env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testProject), claims.Name).
 		Return(attest.Instance{}, false, opErr).Once()
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, opErr)
-	assert.NotErrorIs(t, err, attest.ErrDenied)
+	require.ErrorIs(t, err, opErr)
+	require.NotErrorIs(t, err, attest.ErrDenied)
 	env.incus.AssertNotCalled(t, "Lookup", mock.Anything, attest.ProjectName(testOpsProject), mock.Anything)
 	env.incus.AssertNotCalled(t, "SetNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
@@ -398,11 +444,11 @@ func TestAttestNoHintDeniesZeroAndMultipleMatches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		first attest.Instance
-		ok1   bool
+		name   string
+		first  attest.Instance
+		ok1    bool
 		second attest.Instance
-		ok2   bool
+		ok2    bool
 	}{
 		{name: "zero matches", ok1: false, ok2: false},
 		{
@@ -417,17 +463,17 @@ func TestAttestNoHintDeniesZeroAndMultipleMatches(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+			env := newEnv(t, validServerConfig(), pairReader())
 			claims := validClaims()
 			env.expectPayload(claims)
-			env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testProject), claims.Name).
+			env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testProject), claims.Name).
 				Return(tt.first, tt.ok1, nil).Once()
-			env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testOpsProject), claims.Name).
+			env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testOpsProject), claims.Name).
 				Return(tt.second, tt.ok2, nil).Once()
 
 			err := env.service.Attest(context.Background(), env.exchange)
 			require.Error(t, err)
-			assert.ErrorIs(t, err, attest.ErrDenied)
+			require.ErrorIs(t, err, attest.ErrDenied)
 			env.incus.AssertNotCalled(t, "SetNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 			env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 		})
@@ -444,7 +490,7 @@ func TestAttestServerAuthoredDenialsWrapErrDenied(t *testing.T) {
 		{
 			name: "allowlist",
 			setup: func(t *testing.T) error {
-				env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+				env := newEnv(t, validServerConfig(), pairReader())
 				claims := hintedClaims()
 				claims.Project = "forbidden"
 				env.expectPayload(claims)
@@ -454,10 +500,10 @@ func TestAttestServerAuthoredDenialsWrapErrDenied(t *testing.T) {
 		{
 			name: "hinted not found",
 			setup: func(t *testing.T) error {
-				env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+				env := newEnv(t, validServerConfig(), pairReader())
 				claims := hintedClaims()
 				env.expectPayload(claims)
-				env.incus.EXPECT().Lookup(mock.Anything, claims.Project, claims.Name).
+				env.incus.EXPECT().Lookup(incusCtx(), claims.Project, claims.Name).
 					Return(attest.Instance{}, false, nil)
 				return env.service.Attest(context.Background(), env.exchange)
 			},
@@ -465,12 +511,12 @@ func TestAttestServerAuthoredDenialsWrapErrDenied(t *testing.T) {
 		{
 			name: "zero match",
 			setup: func(t *testing.T) error {
-				env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+				env := newEnv(t, validServerConfig(), pairReader())
 				claims := validClaims()
 				env.expectPayload(claims)
-				env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testProject), claims.Name).
+				env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testProject), claims.Name).
 					Return(attest.Instance{}, false, nil)
-				env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testOpsProject), claims.Name).
+				env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testOpsProject), claims.Name).
 					Return(attest.Instance{}, false, nil)
 				return env.service.Attest(context.Background(), env.exchange)
 			},
@@ -478,15 +524,15 @@ func TestAttestServerAuthoredDenialsWrapErrDenied(t *testing.T) {
 		{
 			name: "multiple match",
 			setup: func(t *testing.T) error {
-				env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+				env := newEnv(t, validServerConfig(), pairReader())
 				claims := validClaims()
 				first := validInstance()
 				second := validInstance()
 				second.Project = testOpsProject
 				env.expectPayload(claims)
-				env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testProject), claims.Name).
+				env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testProject), claims.Name).
 					Return(first, true, nil)
-				env.incus.EXPECT().Lookup(mock.Anything, attest.ProjectName(testOpsProject), claims.Name).
+				env.incus.EXPECT().Lookup(incusCtx(), attest.ProjectName(testOpsProject), claims.Name).
 					Return(second, true, nil)
 				return env.service.Attest(context.Background(), env.exchange)
 			},
@@ -498,7 +544,7 @@ func TestAttestServerAuthoredDenialsWrapErrDenied(t *testing.T) {
 			t.Parallel()
 			err := tt.setup(t)
 			require.Error(t, err)
-			assert.ErrorIs(t, err, attest.ErrDenied)
+			require.ErrorIs(t, err, attest.ErrDenied)
 		})
 	}
 }
@@ -521,11 +567,11 @@ func TestAttestFailsOnShortRandomReads(t *testing.T) {
 			claims := hintedClaims()
 			instance := validInstance()
 			env.expectPayload(claims)
-			env.expectHintedLookup(instance, true, nil)
+			env.expectHintedLookup(instance)
 
 			err := env.service.Attest(context.Background(), env.exchange)
 			require.Error(t, err)
-			assert.NotErrorIs(t, err, attest.ErrDenied)
+			require.NotErrorIs(t, err, attest.ErrDenied)
 			env.incus.AssertNotCalled(t, "SetNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 			env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 		})
@@ -536,18 +582,18 @@ func TestAttestCleansUpAfterSetNonceFailure(t *testing.T) {
 	t.Parallel()
 
 	setErr := errors.New("transport interrupted")
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
-	key, stored, _ := pairValues(attemptFill, nonceFill)
+	key, stored, _ := pairValues()
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	env.incus.EXPECT().SetNonce(mock.Anything, instance, key, stored).Return(setErr).Once()
+	env.expectHintedLookup(instance)
+	env.incus.EXPECT().SetNonce(incusCtx(), instance, key, stored).Return(setErr).Once()
 	env.expectCleanup(instance, key, nil)
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, setErr)
+	require.ErrorIs(t, err, setErr)
 	assert.NotContains(t, err.Error(), stored)
 	env.exchange.AssertNotCalled(t, "SendChallenge", mock.Anything, mock.Anything)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
@@ -557,18 +603,18 @@ func TestAttestCleansUpUncertainSetOutcomeOnce(t *testing.T) {
 	t.Parallel()
 
 	setErr := errors.New("write outcome unknown")
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
-	key, stored, _ := pairValues(attemptFill, nonceFill)
+	key, stored, _ := pairValues()
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	env.incus.EXPECT().SetNonce(mock.Anything, instance, key, stored).Return(setErr).Once()
+	env.expectHintedLookup(instance)
+	env.incus.EXPECT().SetNonce(incusCtx(), instance, key, stored).Return(setErr).Once()
 	env.expectCleanup(instance, key, nil)
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, setErr)
+	require.ErrorIs(t, err, setErr)
 	env.incus.AssertNumberOfCalls(t, "UnsetNonce", 1)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 }
@@ -576,25 +622,25 @@ func TestAttestCleansUpUncertainSetOutcomeOnce(t *testing.T) {
 func TestAttestCleansUpExactlyOnceAfterCancellation(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	key, stored, _ := pairValues(attemptFill, nonceFill)
-	env.incus.EXPECT().SetNonce(mock.Anything, instance, key, stored).Return(nil).Once()
+	env.expectHintedLookup(instance)
+	key, stored, _ := pairValues()
+	env.incus.EXPECT().SetNonce(incusCtx(), instance, key, stored).Return(nil).Once()
 	env.exchange.EXPECT().SendChallenge(mock.Anything, mustChallenge(t, key)).
 		Run(func(context.Context, []byte) { cancel() }).
 		Return(nil).Once()
-	env.exchange.EXPECT().ReceiveResponse(mock.Anything).Return(nil, context.Canceled).Once()
-	env.expectCleanup(instance, key, nil)
+	env.exchange.EXPECT().ReceiveResponse(challengeCtx()).Return(nil, context.Canceled).Once()
+	env.incus.EXPECT().UnsetNonce(detachedCleanupCtx(), instance, key).Return(nil).Once()
 
 	err := env.service.Attest(ctx, env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
 	env.incus.AssertNumberOfCalls(t, "UnsetNonce", 1)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 }
@@ -602,12 +648,12 @@ func TestAttestCleansUpExactlyOnceAfterCancellation(t *testing.T) {
 func TestAttestCleansUpExactlyOnceOnSuccess(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	key, _ := env.expectChallengeFlow(instance, attemptFill, nonceFill, nil, nil)
+	env.expectHintedLookup(instance)
+	key, _ := env.expectChallengeFlow(instance, nil, nil)
 	env.expectCleanup(instance, key, nil)
 	env.expectAttributes(instance, validServerConfig().UserSelectors)
 
@@ -619,7 +665,7 @@ func TestAttestCleansUpExactlyOnceOnSuccess(t *testing.T) {
 func TestAttestRejectsChallengeFailures(t *testing.T) {
 	t.Parallel()
 
-	wrong, err := attest.NewNonce(fill16(0xff)[:])
+	wrong, err := attest.NewNonce(fillBytes(0xff))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -637,17 +683,17 @@ func TestAttestRejectsChallengeFailures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+			env := newEnv(t, validServerConfig(), pairReader())
 			claims := hintedClaims()
 			instance := validInstance()
 			env.expectPayload(claims)
-			env.expectHintedLookup(instance, true, nil)
-			key, stored := env.expectChallengeFlow(instance, attemptFill, nonceFill, tt.recv, tt.recvErr)
+			env.expectHintedLookup(instance)
+			key, stored := env.expectChallengeFlow(instance, tt.recv, tt.recvErr)
 			env.expectCleanup(instance, key, nil)
 
 			err := env.service.Attest(context.Background(), env.exchange)
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tt.want)
+			require.ErrorIs(t, err, tt.want)
 			assert.NotContains(t, err.Error(), stored)
 			env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 		})
@@ -658,20 +704,20 @@ func TestAttestPrimaryClassWinsOverCleanupFailure(t *testing.T) {
 	t.Parallel()
 
 	cleanupErr := errors.New("unset failed")
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	key, stored := env.expectChallengeFlow(instance, attemptFill, nonceFill, nil, context.DeadlineExceeded)
+	env.expectHintedLookup(instance)
+	key, stored := env.expectChallengeFlow(instance, nil, context.DeadlineExceeded)
 	env.expectCleanup(instance, key, cleanupErr)
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
-	assert.NotErrorIs(t, err, cleanupErr)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.NotErrorIs(t, err, cleanupErr)
+	assert.Contains(t, err.Error(), cleanupErr.Error())
 	assert.NotContains(t, err.Error(), stored)
-	assert.NotContains(t, err.Error(), cleanupErr.Error())
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 }
 
@@ -679,17 +725,17 @@ func TestAttestCleanupFailurePreventsAttributes(t *testing.T) {
 	t.Parallel()
 
 	cleanupErr := errors.New("still present")
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	key, stored := env.expectChallengeFlow(instance, attemptFill, nonceFill, nil, nil)
+	env.expectHintedLookup(instance)
+	key, stored := env.expectChallengeFlow(instance, nil, nil)
 	env.expectCleanup(instance, key, cleanupErr)
 
 	err := env.service.Attest(context.Background(), env.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, cleanupErr)
+	require.ErrorIs(t, err, cleanupErr)
 	assert.NotContains(t, err.Error(), stored)
 	env.exchange.AssertNotCalled(t, "SendAttributes", mock.Anything, mock.Anything)
 	env.incus.AssertNumberOfCalls(t, "UnsetNonce", 1)
@@ -698,20 +744,20 @@ func TestAttestCleanupFailurePreventsAttributes(t *testing.T) {
 func TestAttestUsesExactKeyAndAPIAttributes(t *testing.T) {
 	t.Parallel()
 
-	env := newEnv(t, validServerConfig(), pairReader(attemptFill, nonceFill))
+	env := newEnv(t, validServerConfig(), pairReader())
 	claims := hintedClaims()
 	instance := validInstance()
 	instance.Profiles = []string{"default", "web"}
 	instance.ExpandedConfig = map[string]string{"user.role": "edge"}
 	env.expectPayload(claims)
-	env.expectHintedLookup(instance, true, nil)
-	key, stored := env.expectChallengeFlow(instance, attemptFill, nonceFill, nil, nil)
+	env.expectHintedLookup(instance)
+	key, stored := env.expectChallengeFlow(instance, nil, nil)
 	env.expectCleanup(instance, key, nil)
 	env.expectAttributes(instance, validServerConfig().UserSelectors)
 
 	require.NoError(t, env.service.Attest(context.Background(), env.exchange))
 	assert.Equal(t, "user.spire.attestor.nonce.11111111111111111111111111111111", string(key))
-	assert.Equal(t, base64.RawURLEncoding.EncodeToString(fill16(nonceFill)[:]), stored)
+	assert.Equal(t, base64.RawURLEncoding.EncodeToString(fillBytes(nonceFill)), stored)
 }
 
 func TestAttestConcurrentAttemptsUseDistinctKeysAndNonces(t *testing.T) {
@@ -719,7 +765,12 @@ func TestAttestConcurrentAttemptsUseDistinctKeysAndNonces(t *testing.T) {
 
 	cfg := validServerConfig()
 	incus := mocks.NewMockIncus(t)
-	service, err := New(incus, cfg, testTrustDomain, bytes.NewReader(append(pairBytes(0x01, 0x02), pairBytes(0x03, 0x04)...)))
+	service, err := New(
+		incus,
+		cfg,
+		testTrustDomain,
+		bytes.NewReader(append(pairBytes(0x01, 0x02), pairBytes(0x03, 0x04)...)),
+	)
 	require.NoError(t, err)
 
 	claims := hintedClaims()
@@ -728,59 +779,78 @@ func TestAttestConcurrentAttemptsUseDistinctKeysAndNonces(t *testing.T) {
 	wantAttrs, err := attest.BuildAttributes(testTrustDomain, instance, cfg.UserSelectors)
 	require.NoError(t, err)
 
-	incus.EXPECT().Lookup(mock.Anything, claims.Project, claims.Name).
+	keyA := attest.NewConfigKeyFromAttemptID(fill16(0x01))
+	keyB := attest.NewConfigKeyFromAttemptID(fill16(0x03))
+	nonceA, err := attest.NewNonce(fillBytes(0x02))
+	require.NoError(t, err)
+	nonceB, err := attest.NewNonce(fillBytes(0x04))
+	require.NoError(t, err)
+	storedA := base64.RawURLEncoding.EncodeToString(nonceA[:])
+	storedB := base64.RawURLEncoding.EncodeToString(nonceB[:])
+	wantPairs := map[attest.ConfigKey]string{keyA: storedA, keyB: storedB}
+	respByKey := map[attest.ConfigKey][]byte{
+		keyA: mustResponse(t, nonceA),
+		keyB: mustResponse(t, nonceB),
+	}
+
+	incus.EXPECT().Lookup(incusCtx(), claims.Project, claims.Name).
 		Return(instance, true, nil).Times(2)
 
 	var (
 		mu         sync.Mutex
-		keys       []attest.ConfigKey
-		nonces     []string
 		nonceByKey = map[attest.ConfigKey]string{}
 	)
-	incus.EXPECT().SetNonce(mock.Anything, instance, mock.AnythingOfType("attest.ConfigKey"), mock.AnythingOfType("string")).
+	incus.EXPECT().
+		SetNonce(incusCtx(), instance, mock.AnythingOfType("attest.ConfigKey"), mock.AnythingOfType("string")).
 		Run(func(_ context.Context, _ attest.Instance, key attest.ConfigKey, nonce string) {
 			mu.Lock()
 			defer mu.Unlock()
-			keys = append(keys, key)
-			nonces = append(nonces, nonce)
 			nonceByKey[key] = nonce
-		}).Return(nil).Times(2)
+		}).
+		Return(nil).
+		Times(2)
 	incus.EXPECT().UnsetNonce(mock.Anything, instance, mock.AnythingOfType("attest.ConfigKey")).
 		Return(nil).Times(2)
 
-	run := func() {
+	run := func() error {
 		exchange := mocks.NewMockExchange(t)
 		var attemptKey attest.ConfigKey
+		var decodeErr error
 		exchange.EXPECT().ReceivePayload(mock.Anything).Return(payload, nil).Once()
 		exchange.EXPECT().SendChallenge(mock.Anything, mock.Anything).
 			Run(func(_ context.Context, raw []byte) {
-				decoded, decodeErr := wire.DecodeChallenge(raw)
-				require.NoError(t, decodeErr)
-				attemptKey = decoded
+				attemptKey, decodeErr = wire.DecodeChallenge(raw)
 			}).Return(nil).Once()
-		exchange.EXPECT().ReceiveResponse(mock.Anything).
+		exchange.EXPECT().ReceiveResponse(challengeCtx()).
 			RunAndReturn(func(context.Context) ([]byte, error) {
-				mu.Lock()
-				stored := nonceByKey[attemptKey]
-				mu.Unlock()
-				raw, decErr := base64.RawURLEncoding.DecodeString(stored)
-				require.NoError(t, decErr)
-				nonce, nonceErr := attest.NewNonce(raw)
-				require.NoError(t, nonceErr)
-				return mustResponse(t, nonce), nil
+				if decodeErr != nil {
+					return nil, decodeErr
+				}
+				return respByKey[attemptKey], nil
 			}).Once()
 		exchange.EXPECT().SendAttributes(mock.Anything, wantAttrs).Return(nil).Once()
-		require.NoError(t, service.Attest(context.Background(), exchange))
+		return service.Attest(context.Background(), exchange)
 	}
 
-	var wg sync.WaitGroup
+	var (
+		wg      sync.WaitGroup
+		runErrs []error
+	)
 	wg.Add(2)
-	go func() { defer wg.Done(); run() }()
-	go func() { defer wg.Done(); run() }()
+	for range 2 {
+		go func() {
+			defer wg.Done()
+			err := run()
+			mu.Lock()
+			runErrs = append(runErrs, err)
+			mu.Unlock()
+		}()
+	}
 	wg.Wait()
 
-	require.Len(t, keys, 2)
-	require.Len(t, nonces, 2)
-	assert.NotEqual(t, keys[0], keys[1])
-	assert.NotEqual(t, nonces[0], nonces[1])
+	require.Len(t, runErrs, 2)
+	for _, runErr := range runErrs {
+		require.NoError(t, runErr)
+	}
+	assert.Equal(t, wantPairs, nonceByKey)
 }

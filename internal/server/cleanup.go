@@ -45,5 +45,5 @@ func annotateCleanup(primary, cleanErr error) error {
 	if primary == nil {
 		return fmt.Errorf("cleanup nonce: %w", cleanErr)
 	}
-	return fmt.Errorf("%w (cleanup failed)", primary)
+	return fmt.Errorf("%w (cleanup: %s)", primary, cleanErr.Error())
 }

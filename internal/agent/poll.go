@@ -15,6 +15,9 @@ const initialPollDelay = 25 * time.Millisecond
 // maxPollDelay is the capped wait between guest config reads.
 const maxPollDelay = 250 * time.Millisecond
 
+// pollBackoffFactor doubles the wait between guest config reads.
+const pollBackoffFactor = 2
+
 // waitFunc waits delay or until ctx is done.
 type waitFunc func(ctx context.Context, delay time.Duration) error
 
@@ -28,6 +31,29 @@ type timeoutError interface {
 type temporaryError interface {
 	// Temporary reports whether the failure is transient.
 	Temporary() bool
+}
+
+// secretSafeError preserves an inspectable cause without copying its text.
+type secretSafeError struct {
+	// message is the public error text, with no config key or nonce.
+	message string
+	// cause is the inspectable wrapped error.
+	cause error
+}
+
+// Error returns the public message.
+func (e secretSafeError) Error() string {
+	return e.message
+}
+
+// Unwrap returns the inspectable cause.
+func (e secretSafeError) Unwrap() error {
+	return e.cause
+}
+
+// wrapReadConfig wraps err without including key or value text.
+func wrapReadConfig(err error) error {
+	return secretSafeError{message: "read challenge config", cause: err}
 }
 
 // waitDuration waits delay or returns ctx.Err() when ctx is done.
@@ -68,7 +94,7 @@ func isRetryable(err error) bool {
 
 // nextPollDelay doubles delay and caps it at maxPollDelay.
 func nextPollDelay(delay time.Duration) time.Duration {
-	next := delay * 2
+	next := delay * pollBackoffFactor
 	if next > maxPollDelay {
 		return maxPollDelay
 	}
@@ -85,10 +111,10 @@ func (s *Service) pollConfig(ctx context.Context, key attest.ConfigKey) (string,
 		value, found, err := s.evidence.ReadConfig(pollCtx, key)
 		if err != nil {
 			if isContextError(err) {
-				return "", fmt.Errorf("read challenge config: %w", err)
+				return "", wrapReadConfig(err)
 			}
 			if !isRetryable(err) {
-				return "", fmt.Errorf("read challenge config: %w", err)
+				return "", wrapReadConfig(err)
 			}
 		} else if found {
 			return value, nil

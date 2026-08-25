@@ -14,7 +14,8 @@ type GuestEvidence interface {
 	//
 	// found is false when the key is not yet visible. A non-nil error is
 	// classified before found: context errors fail immediately, and only
-	// Timeout() or Temporary() true errors are retried.
+	// Timeout() or Temporary() true errors are retried. Returned errors
+	// must not include the config key or value.
 	ReadConfig(ctx context.Context, key attest.ConfigKey) (value string, found bool, err error)
 }
 
@@ -24,6 +25,7 @@ type Exchange interface {
 	SendPayload(ctx context.Context, payload []byte) error
 	// ReceiveChallenge receives the one challenge message.
 	ReceiveChallenge(ctx context.Context) ([]byte, error)
-	// SendResponse sends the encoded nonce response.
+	// SendResponse sends the encoded nonce response. Implementations must not
+	// include response bytes in returned errors.
 	SendResponse(ctx context.Context, response []byte) error
 }

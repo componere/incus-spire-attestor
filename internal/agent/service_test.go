@@ -49,9 +49,23 @@ func (canceledTemporaryError) Unwrap() error   { return context.Canceled }
 
 type deadlineTemporaryError struct{}
 
-func (deadlineTemporaryError) Error() string   { return "deadline" }
-func (deadlineTemporaryError) Timeout() bool   { return true }
-func (deadlineTemporaryError) Unwrap() error   { return context.DeadlineExceeded }
+func (deadlineTemporaryError) Error() string { return "deadline" }
+func (deadlineTemporaryError) Timeout() bool { return true }
+func (deadlineTemporaryError) Unwrap() error { return context.DeadlineExceeded }
+
+// leakingReadError is a guest read failure whose text includes the key and nonce.
+type leakingReadError struct {
+	// cause is the inspectable wrapped error.
+	cause error
+}
+
+func (e leakingReadError) Error() string {
+	return testConfigKey + "=" + testNonceB64
+}
+
+func (e leakingReadError) Unwrap() error {
+	return e.cause
+}
 
 type testContext struct {
 	evidence *mocks.MockGuestEvidence
@@ -102,7 +116,7 @@ func mustResponse(t *testing.T) []byte {
 	return raw
 }
 
-func instantWait(ctx context.Context, delay time.Duration) error {
+func instantWait(ctx context.Context, _ time.Duration) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -127,11 +141,11 @@ func newTestContext(t *testing.T, pollTimeout time.Duration, wait waitFunc) *tes
 	return tc
 }
 
-func expectHappyClaimsAndChallenge(t *testing.T, tc *testContext, parent context.Context) {
+func expectHappyClaimsAndChallenge(ctx context.Context, t *testing.T, tc *testContext) {
 	t.Helper()
-	tc.evidence.EXPECT().Claims(parent).Return(validClaims(), nil).Once()
-	tc.exchange.EXPECT().SendPayload(parent, mustPayload(t)).Return(nil).Once()
-	tc.exchange.EXPECT().ReceiveChallenge(parent).Return(mustChallenge(t), nil).Once()
+	tc.evidence.EXPECT().Claims(ctx).Return(validClaims(), nil).Once()
+	tc.exchange.EXPECT().SendPayload(ctx, mustPayload(t)).Return(nil).Once()
+	tc.exchange.EXPECT().ReceiveChallenge(ctx).Return(mustChallenge(t), nil).Once()
 }
 
 func TestNewRejectsNilEvidenceAndNonPositiveTimeout(t *testing.T) {
@@ -189,7 +203,7 @@ func TestAttestRejectsNonVMBeforeSend(t *testing.T) {
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, attest.ErrDenied)
+	require.ErrorIs(t, err, attest.ErrDenied)
 }
 
 func TestAttestRejectsMalformedChallengeBeforeConfigRead(t *testing.T) {
@@ -203,7 +217,7 @@ func TestAttestRejectsMalformedChallengeBeforeConfigRead(t *testing.T) {
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, wire.ErrInvalid)
+	require.ErrorIs(t, err, wire.ErrInvalid)
 }
 
 func TestAttestRejectsWrongChallengeBeforeConfigRead(t *testing.T) {
@@ -224,7 +238,7 @@ func TestAttestRejectsWrongChallengeBeforeConfigRead(t *testing.T) {
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, wire.ErrUnsupported)
+	require.ErrorIs(t, err, wire.ErrUnsupported)
 }
 
 func TestAttestPollsAbsentAndTransientReadsThenSucceeds(t *testing.T) {
@@ -232,7 +246,7 @@ func TestAttestPollsAbsentAndTransientReadsThenSucceeds(t *testing.T) {
 
 	parent := context.Background()
 	tc := newTestContext(t, testPollTimeout, instantWait)
-	expectHappyClaimsAndChallenge(t, tc, parent)
+	expectHappyClaimsAndChallenge(parent, t, tc)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
 		Return("", false, nil).Once()
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
@@ -265,13 +279,13 @@ func TestAttestFailsImmediatelyWhenTimeoutOrTemporaryMethodsAreFalse(t *testing.
 			t.Parallel()
 			parent := context.Background()
 			tc := newTestContext(t, testPollTimeout, instantWait)
-			expectHappyClaimsAndChallenge(t, tc, parent)
+			expectHappyClaimsAndChallenge(parent, t, tc)
 			tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
 				Return("3q2-7wARIjNEVWZ3iJmquw", true, tt.err).Once()
 
 			err := tc.service.Attest(parent, tc.exchange)
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tt.err)
+			require.ErrorIs(t, err, tt.err)
 			assert.NotContains(t, err.Error(), testNonceB64)
 		})
 	}
@@ -281,9 +295,9 @@ func TestAttestContextErrorsTakePrecedenceOverRetryableMethods(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		err    error
-		cause  error
+		name  string
+		err   error
+		cause error
 	}{
 		{name: "canceled with temporary true", err: canceledTemporaryError{}, cause: context.Canceled},
 		{name: "deadline with timeout true", err: deadlineTemporaryError{}, cause: context.DeadlineExceeded},
@@ -294,13 +308,13 @@ func TestAttestContextErrorsTakePrecedenceOverRetryableMethods(t *testing.T) {
 			t.Parallel()
 			parent := context.Background()
 			tc := newTestContext(t, testPollTimeout, instantWait)
-			expectHappyClaimsAndChallenge(t, tc, parent)
+			expectHappyClaimsAndChallenge(parent, t, tc)
 			tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
 				Return("", false, tt.err).Once()
 
 			err := tc.service.Attest(parent, tc.exchange)
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tt.cause)
+			require.ErrorIs(t, err, tt.cause)
 			assert.Empty(t, tc.delays)
 		})
 	}
@@ -311,7 +325,7 @@ func TestAttestCapsBackoffAt250ms(t *testing.T) {
 
 	parent := context.Background()
 	tc := newTestContext(t, testPollTimeout, instantWait)
-	expectHappyClaimsAndChallenge(t, tc, parent)
+	expectHappyClaimsAndChallenge(parent, t, tc)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
 		Return("", false, nil).Times(6)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
@@ -338,23 +352,30 @@ func TestAttestPollTimeoutIsScopedAfterChallenge(t *testing.T) {
 	pollTimeout := 50 * time.Millisecond
 	tc := newTestContext(t, pollTimeout, instantWait)
 
-	var claimsCtx, sendCtx, recvCtx, readCtx context.Context
-	tc.evidence.EXPECT().Claims(mock.Anything).RunAndReturn(func(ctx context.Context) (attest.Claims, error) {
-		claimsCtx = ctx
+	var claimsDeadline, sendDeadline, recvDeadline, readDeadline time.Time
+	var claimsHasDeadline, sendHasDeadline, recvHasDeadline, readHasDeadline bool
+	tc.evidence.EXPECT().Claims(mock.Anything).RunAndReturn(func(reqCtx context.Context) (attest.Claims, error) {
+		claimsDeadline, claimsHasDeadline = reqCtx.Deadline()
 		return validClaims(), nil
 	}).Once()
-	tc.exchange.EXPECT().SendPayload(mock.Anything, mustPayload(t)).RunAndReturn(func(ctx context.Context, _ []byte) error {
-		sendCtx = ctx
-		return nil
-	}).Once()
-	tc.exchange.EXPECT().ReceiveChallenge(mock.Anything).RunAndReturn(func(ctx context.Context) ([]byte, error) {
-		recvCtx = ctx
+	tc.exchange.EXPECT().
+		SendPayload(mock.Anything, mustPayload(t)).
+		RunAndReturn(func(reqCtx context.Context, _ []byte) error {
+			sendDeadline, sendHasDeadline = reqCtx.Deadline()
+			return nil
+		}).
+		Once()
+	tc.exchange.EXPECT().ReceiveChallenge(mock.Anything).RunAndReturn(func(reqCtx context.Context) ([]byte, error) {
+		recvDeadline, recvHasDeadline = reqCtx.Deadline()
 		return mustChallenge(t), nil
 	}).Once()
-	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).RunAndReturn(func(ctx context.Context, _ attest.ConfigKey) (string, bool, error) {
-		readCtx = ctx
-		return testNonceB64, true, nil
-	}).Once()
+	tc.evidence.EXPECT().
+		ReadConfig(mock.Anything, validKey()).
+		RunAndReturn(func(reqCtx context.Context, _ attest.ConfigKey) (string, bool, error) {
+			readDeadline, readHasDeadline = reqCtx.Deadline()
+			return testNonceB64, true, nil
+		}).
+		Once()
 	tc.exchange.EXPECT().SendResponse(mock.Anything, mustResponse(t)).Return(nil).Once()
 
 	err := tc.service.Attest(parent, tc.exchange)
@@ -362,31 +383,31 @@ func TestAttestPollTimeoutIsScopedAfterChallenge(t *testing.T) {
 
 	parentDeadline, parentHasDeadline := parent.Deadline()
 	require.True(t, parentHasDeadline)
-	for _, ctx := range []context.Context{claimsCtx, sendCtx, recvCtx} {
-		deadline, ok := ctx.Deadline()
-		require.True(t, ok, "exchange operations use the caller context")
-		assert.Equal(t, parentDeadline, deadline)
-	}
-	readDeadline, ok := readCtx.Deadline()
-	require.True(t, ok, "config reads use the poll timeout context")
+	require.True(t, claimsHasDeadline, "exchange operations use the caller context")
+	require.True(t, sendHasDeadline, "exchange operations use the caller context")
+	require.True(t, recvHasDeadline, "exchange operations use the caller context")
+	assert.Equal(t, parentDeadline, claimsDeadline)
+	assert.Equal(t, parentDeadline, sendDeadline)
+	assert.Equal(t, parentDeadline, recvDeadline)
+	require.True(t, readHasDeadline, "config reads use the poll timeout context")
 	assert.True(t, readDeadline.Before(parentDeadline), "poll deadline must be earlier than the caller deadline")
 	remaining := time.Until(readDeadline)
 	assert.Greater(t, remaining, time.Duration(0))
 	assert.LessOrEqual(t, remaining, pollTimeout)
 }
 
-func TestAttestWrapsPollTimeoutCause(t *testing.T) {
+func TestAttestWrapsAdapterReturnedDeadlineExceeded(t *testing.T) {
 	t.Parallel()
 
 	parent := context.Background()
 	tc := newTestContext(t, testPollTimeout, instantWait)
-	expectHappyClaimsAndChallenge(t, tc, parent)
+	expectHappyClaimsAndChallenge(parent, t, tc)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
 		Return("", false, context.DeadlineExceeded).Once()
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Empty(t, tc.delays)
 }
 
@@ -396,7 +417,7 @@ func TestAttestWrapsParentCancellationDuringPoll(t *testing.T) {
 	parent, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	tc := newTestContext(t, testPollTimeout, instantWait)
-	expectHappyClaimsAndChallenge(t, tc, parent)
+	expectHappyClaimsAndChallenge(parent, t, tc)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).RunAndReturn(
 		func(ctx context.Context, _ attest.ConfigKey) (string, bool, error) {
 			cancel()
@@ -406,7 +427,7 @@ func TestAttestWrapsParentCancellationDuringPoll(t *testing.T) {
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, tc.delays)
 }
 
@@ -416,13 +437,13 @@ func TestAttestFailsImmediatelyOnPermanentReadFailure(t *testing.T) {
 	parent := context.Background()
 	permanent := errors.New("permission denied")
 	tc := newTestContext(t, testPollTimeout, instantWait)
-	expectHappyClaimsAndChallenge(t, tc, parent)
+	expectHappyClaimsAndChallenge(parent, t, tc)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
 		Return("", false, permanent).Once()
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, permanent)
+	require.ErrorIs(t, err, permanent)
 	assert.Empty(t, tc.delays)
 }
 
@@ -432,13 +453,13 @@ func TestAttestMalformedFoundValueFailsOnceWithoutLeakingNonce(t *testing.T) {
 	parent := context.Background()
 	secret := "secret-nonce-value-do-not-leak"
 	tc := newTestContext(t, testPollTimeout, instantWait)
-	expectHappyClaimsAndChallenge(t, tc, parent)
+	expectHappyClaimsAndChallenge(parent, t, tc)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
 		Return(secret, true, nil).Once()
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, wire.ErrInvalid)
+	require.ErrorIs(t, err, wire.ErrInvalid)
 	assert.NotContains(t, err.Error(), secret)
 	assert.NotContains(t, err.Error(), testNonceB64)
 	assert.Empty(t, tc.delays)
@@ -448,17 +469,17 @@ func TestAttestWaitExhaustionWrapsPollContextCause(t *testing.T) {
 	t.Parallel()
 
 	parent := context.Background()
-	tc := newTestContext(t, time.Nanosecond, func(ctx context.Context, delay time.Duration) error {
+	tc := newTestContext(t, time.Nanosecond, func(ctx context.Context, _ time.Duration) error {
 		<-ctx.Done()
 		return ctx.Err()
 	})
-	expectHappyClaimsAndChallenge(t, tc, parent)
+	expectHappyClaimsAndChallenge(parent, t, tc)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
 		Return("", false, nil).Once()
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestAttestRequiresExchange(t *testing.T) {
@@ -475,14 +496,69 @@ func TestAttestDoesNotIncludeConfigKeyInErrors(t *testing.T) {
 	t.Parallel()
 
 	parent := context.Background()
+	cause := errors.New("guest refused")
+	leaking := leakingReadError{cause: cause}
 	tc := newTestContext(t, testPollTimeout, instantWait)
-	expectHappyClaimsAndChallenge(t, tc, parent)
+	expectHappyClaimsAndChallenge(parent, t, tc)
 	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
-		Return("", false, errors.New("socket closed")).Once()
+		Return("", false, leaking).Once()
 
 	err := tc.service.Attest(parent, tc.exchange)
 	require.Error(t, err)
+	require.ErrorIs(t, err, cause)
 	assert.NotContains(t, err.Error(), testConfigKey)
 	assert.NotContains(t, err.Error(), testNonceB64)
 }
 
+func TestAttestWrapsInjectedNonContextWaitError(t *testing.T) {
+	t.Parallel()
+
+	parent := context.Background()
+	waitErr := errors.New("clock stopped")
+	tc := newTestContext(t, testPollTimeout, func(ctx context.Context, _ time.Duration) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return waitErr
+	})
+	expectHappyClaimsAndChallenge(parent, t, tc)
+	tc.evidence.EXPECT().ReadConfig(mock.Anything, validKey()).
+		Return("", false, nil).Once()
+
+	err := tc.service.Attest(parent, tc.exchange)
+	require.Error(t, err)
+	require.ErrorIs(t, err, waitErr)
+}
+
+func TestWaitDurationElapsedWait(t *testing.T) {
+	t.Parallel()
+
+	err := waitDuration(context.Background(), 0)
+	require.NoError(t, err)
+}
+
+func TestWaitDurationAlreadyCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := waitDuration(ctx, time.Hour)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestWaitDurationMidWaitCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	started := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		close(started)
+		done <- waitDuration(ctx, time.Hour)
+	}()
+	<-started
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+}
