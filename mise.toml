@@ -23,6 +23,7 @@ python = "3.14.3"
 # cosign/SLSA/GitHub-attestation recorded in mise.lock); it must never fall back to
 # a version-only backend (asdf/npm/cargo/pipx), which records no checksum.
 "aqua:golangci/golangci-lint" = "2.12.2"
+"aqua:vektra/mockery" = "3.7.4"
 
 # Docs (MkDocs) toolchain — moved off moon's former unstable_python/unstable_uv.
 "aqua:astral-sh/uv" = "0.11.0"

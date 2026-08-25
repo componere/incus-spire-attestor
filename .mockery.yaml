@@ -1,0 +1,16 @@
+all: false
+dir: "{{.InterfaceDir}}/mocks"
+filename: "{{.InterfaceName}}.go"
+pkgname: mocks
+recursive: false
+structname: "{{.Mock}}{{.InterfaceName}}"
+template: testify
+packages:
+  github.com/componere/incus-spire-attestor/internal/agent:
+    interfaces:
+      Exchange:
+      GuestEvidence:
+  github.com/componere/incus-spire-attestor/internal/server:
+    interfaces:
+      Exchange:
+      Incus:
