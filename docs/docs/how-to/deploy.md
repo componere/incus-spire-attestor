@@ -20,7 +20,9 @@ configure SPIRE to launch them.
 - A SPIRE Agent process inside an Incus virtual machine that is allowed
   by the server plugin `projects` list. That guest must expose
   `/dev/incus/sock` and `/sys/class/dmi/id/product_uuid` to the agent
-  process.
+  process. The guest cloud-init `local-hostname` must equal the Incus
+  instance name, and the instance must have
+  `volatile.cloud-init.instance-id` set.
 - Network reachability from the SPIRE Server host to the Incus API
   endpoint you will set in `incus_endpoint`.
 - An Incus client identity that can look up allowed instances and, on
@@ -157,6 +159,9 @@ If attestation fails closed, check that the guest is a
 `virtual-machine` in an allowed project, that the agent can read the
 guest socket and DMI UUID, and that the server can reach Incus with the
 mounted credentials.
+If the agent `project` hint is omitted, confirm that exactly one allowed
+project contains a matching instance. Multiple matches are denied as
+ambiguous.
 
 ## Roll back or revoke credentials
 

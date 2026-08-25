@@ -20,9 +20,12 @@ selector set.
 
 The server looks up Incus through the official API, using the configured
 project allowlist. It accepts the attempt only when the API record is a
-`virtual-machine` and the project, name, canonical `volatile.uuid`,
-location, cloud-init instance ID, and type all match the claims. The
-identity string and every selector are built from that API snapshot.
+`virtual-machine` and the name, canonical `volatile.uuid`, location,
+cloud-init instance ID, and type all match the claims. When the guest
+supplies a project hint, that project must be allowed and must equal the
+API project. Without a hint, the server searches every allowed project
+and requires exactly one matching instance. The identity string and
+every selector are built from that API snapshot.
 Re-attestation repeats the lookup, so selectors follow current Incus
 state rather than the first observation.
 
@@ -30,9 +33,10 @@ state rather than the first observation.
 
 After the records match, the server stores a 128-bit random nonce under
 a new key `user.spire.attestor.nonce.<32 lowercase hex digits>`. The
-suffix is an independent 128-bit attempt ID. The challenge carries only
-the key. The nonce is not sent on the SPIRE stream, is not logged, and
-is compared as equal-length bytes in constant time.
+suffix is an independent 128-bit attempt ID. The nonce is never sent in
+the challenge and is not logged. The agent returns it once as the
+challenge response, where the server compares it as equal-length bytes
+in constant time.
 
 The agent accepts only that exact key grammar, then reads the value
 through `/dev/incus/sock`. Host-set `user.*` keys are visible on the

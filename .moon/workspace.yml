@@ -1,6 +1,6 @@
-# Shared Moon workspace configuration for the repository template.
-# Keep the current projects explicit, then uncomment the discovery patterns
-# below as the template grows into apps, packages, services, or tools.
+# Shared Moon workspace configuration for incus-spire-attestor.
+# Keep project paths explicit; add discovery patterns only when the repository
+# gains projects that benefit from automatic discovery.
 
 projects:
   globs: []

@@ -37,8 +37,11 @@ The server uses that value when it constructs the agent ID.
 | `project` | no | empty | optional guest project hint; may be empty |
 | `poll_timeout` | no | `5s` | positive duration |
 
-`project` locates the instance when the guest has a project hint. It
-never becomes the agent ID or a selector by itself.
+When `project` is set, it locates the instance and must appear in the
+server `projects` allowlist. It never becomes the agent ID or a selector
+by itself. When `project` is omitted, the server searches every allowed
+project and requires exactly one matching instance. Two matches are
+denied as ambiguous.
 
 ## Server `plugin_data`
 

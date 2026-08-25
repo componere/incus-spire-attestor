@@ -36,7 +36,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution expectations, local comm
 
 ## Security
 
-See [SECURITY.md](SECURITY.md) for the support policy and private vulnerability reporting path.
+See [SECURITY.md](SECURITY.md) for the current support status and private vulnerability reporting path.
 
 ## License
 
