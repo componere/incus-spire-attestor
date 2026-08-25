@@ -59,3 +59,6 @@ Verification: `go test ./...`, `go test -race ./internal/attest ./internal/wire 
 ## 2026-08-25 11:00 — Phase 1 pull request opened
 Pushed `feat/phase-1-complete` and opened PR #8, `feat(phase1): add wire codecs and HCL configuration`: https://github.com/componere/incus-spire-attestor/pull/8
 The implementation branch is clean. CI and GitHub Pages checks started after the PR opened.
+
+## 2026-08-25 11:02 — Phase 1 pull request ready
+PR #8 CI and GitHub Pages checks passed. GitHub reports the pull request as clean and mergeable.
