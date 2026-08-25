@@ -212,3 +212,6 @@ The temporary `can_edit` certificate was acceptable for this isolated rehearsal 
 Two bounded reviewers found no blocker or high-severity issue and judged Phase 8 complete. Their medium source finding was fixed with a clustered-sentinel regression test; documentation was narrowed to the actual Configure-time cache semantics. `go test -race ./internal/incus/host`, `git diff --check`, and `moon run root:check` pass. The existing MkDocs 2.0 advisory is informational. The unresolved repository license still blocks a real release.
 
 Next: commit and push `feat/phase-8-sandbox`, open its pull request, and resolve the repository license before any production release.
+
+## 2026-08-25 16:44 — Phase 8 pull request opened
+Committed the standalone location fix as `8af987a`, pushed `feat/phase-8-sandbox`, and opened PR #15, `fix(host): normalize standalone instance location`: https://github.com/componere/incus-spire-attestor/pull/15. GitHub reports the branch mergeable. CI and GitHub Pages checks passed; the Pages deploy job correctly skipped for the pull request.
