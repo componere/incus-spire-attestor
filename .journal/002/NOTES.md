@@ -115,3 +115,7 @@ Verification passed: `go mod tidy`, `go test -race ./internal/spire`, `go test .
 
 ## 2026-08-25 14:09 — Phase 4 pull request opened
 Pushed `feat/phase-4-spire-services` at `a10af3e` and opened PR #11, `feat(spire): add plugin services and command entrypoints`: https://github.com/componere/incus-spire-attestor/pull/11. GitHub reports the pull request mergeable; CI and GitHub Pages checks queued.
+
+## 2026-08-25 14:12 — Phase 4 merged
+PR #11 passed CI and GitHub Pages checks and was squash-merged into `master` as `9886bb2d32a3db6cf1b9c864005081c8360aee69`.
+Next: complete PLAN.md Phase 5 build, packaging, release, and security-scan cutover for both plugin binaries.
