@@ -75,3 +75,7 @@ Two Programmer agents own the complete `internal/agent` and `internal/server` sl
 Implemented the pure `internal/agent` and `internal/server` application services with consumer-owned ports and Mockery-generated test doubles. Agent behavior now enforces payload-first exchange ordering, exact challenge decoding, bounded exponential config polling, context-first transient classification, and secret-safe config-read errors. Server behavior validates claims before lookup, resolves one allowlisted instance, uses serialized independent attempt-key/nonce pairs, applies stage-specific deadlines, guarantees exactly-once detached cleanup, preserves primary error classification with cleanup diagnostics, and emits attributes only after successful verification and cleanup.
 
 Two bounded re-reviews report both packages PR-ready with all prior findings resolved. Verification passed: `mockery --config .mockery.yaml`, `go mod tidy`, `go test ./...`, `go test -race ./internal/agent/... ./internal/server/...`, `golangci-lint run --config .golangci.yml ./...`, and `git diff --check`.
+
+## 2026-08-25 12:04 — Phase 2 pull request ready
+Pushed `feat/phase-2-applications` and opened PR #9, `feat(phase2): add attestation application services`: https://github.com/componere/incus-spire-attestor/pull/9
+GitHub CI and GitHub Pages checks passed. GitHub reports the pull request as clean and mergeable.
