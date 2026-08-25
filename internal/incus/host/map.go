@@ -15,8 +15,16 @@ const volatileUUIDKey = "volatile.uuid"
 // volatileCloudInitIDKey is the Incus cloud-init instance-id configuration key.
 const volatileCloudInitIDKey = "volatile.cloud-init.instance-id"
 
+// standaloneLocationSentinel is the location Incus returns for standalone instances.
+const standaloneLocationSentinel = "none"
+
 // mapInstance copies a detached domain snapshot from an Incus API instance.
-func mapInstance(project attest.ProjectName, name attest.InstanceName, inst *api.Instance) (attest.Instance, error) {
+func mapInstance(
+	project attest.ProjectName,
+	name attest.InstanceName,
+	inst *api.Instance,
+	standaloneLocation string,
+) (attest.Instance, error) {
 	if inst == nil {
 		return attest.Instance{}, fmt.Errorf("%w: instance is required", attest.ErrDenied)
 	}
@@ -33,12 +41,19 @@ func mapInstance(project attest.ProjectName, name attest.InstanceName, inst *api
 	if err != nil {
 		return attest.Instance{}, fmt.Errorf("%w: invalid instance uuid", attest.ErrDenied)
 	}
+	location := inst.Location
+	if location == standaloneLocationSentinel {
+		location = standaloneLocation
+	}
+	if location == "" {
+		return attest.Instance{}, fmt.Errorf("%w: instance location is required", attest.ErrDenied)
+	}
 	return attest.Instance{
 		Project:        project,
 		Name:           name,
 		UUID:           uuid,
 		Type:           attest.InstanceType(inst.Type),
-		Location:       inst.Location,
+		Location:       location,
 		CloudInitID:    configValue(inst.ExpandedConfig, volatileCloudInitIDKey),
 		Profiles:       copyStrings(inst.Profiles),
 		ExpandedConfig: copyConfig(inst.ExpandedConfig),

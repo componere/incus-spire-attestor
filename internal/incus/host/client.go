@@ -19,6 +19,9 @@ type Client struct {
 	server incus.InstanceServer
 	// wait waits between retries; tests may replace it.
 	wait waitFunc
+	// standaloneLocation is the cached non-clustered server name from /1.0.
+	// It is empty on a clustered server.
+	standaloneLocation string
 }
 
 // contextual reaches the concrete client's request-context clone.
@@ -35,6 +38,8 @@ type contextual interface {
 // ca is the PKI CA certificate mapped to ConnectionArgs.TLSCA. cert and key
 // are the client certificate and key mapped to TLSClientCert and TLSClientKey.
 // Credentials are already-loaded PEM bytes; New does not read files.
+// New reads Incus /1.0 once and caches the non-clustered server name used
+// when instance location is the standalone sentinel "none".
 func New(ctx context.Context, endpoint string, ca, cert, key []byte) (*Client, error) {
 	server, err := incus.ConnectIncusWithContext(ctx, endpoint, &incus.ConnectionArgs{
 		TLSCA:         string(ca),
@@ -44,12 +49,41 @@ func New(ctx context.Context, endpoint string, ca, cert, key []byte) (*Client, e
 	if err != nil {
 		return nil, fmt.Errorf("connect incus: %w", err)
 	}
-	return newClient(server), nil
+	client, err := newClient(server)
+	if err != nil {
+		(&Client{server: server}).CloseIdleConnections()
+		return nil, err
+	}
+	return client, nil
 }
 
 // newClient constructs a Client around an already-connected server.
-func newClient(server incus.InstanceServer) *Client {
-	return &Client{server: server, wait: waitDuration}
+func newClient(server incus.InstanceServer) (*Client, error) {
+	client := &Client{server: server, wait: waitDuration}
+	if err := client.loadStandaloneLocation(); err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+// loadStandaloneLocation caches Environment.ServerName from Incus /1.0 when
+// the server is not clustered.
+func (c *Client) loadStandaloneLocation() error {
+	info, _, err := c.server.GetServer()
+	if err != nil {
+		return fmt.Errorf("read incus server: %w", err)
+	}
+	if info == nil {
+		return errors.New("incus server metadata is unavailable")
+	}
+	if info.Environment.ServerClustered {
+		return nil
+	}
+	if info.Environment.ServerName == "" {
+		return errors.New("incus server name is required")
+	}
+	c.standaloneLocation = info.Environment.ServerName
+	return nil
 }
 
 // CloseIdleConnections closes idle HTTP connections on the underlying client.
@@ -81,7 +115,7 @@ func (c *Client) Lookup(
 		}
 		return attest.Instance{}, false, fmt.Errorf("lookup instance: %w", err)
 	}
-	mapped, err := mapInstance(project, name, inst)
+	mapped, err := mapInstance(project, name, inst, c.standaloneLocation)
 	if err != nil {
 		return attest.Instance{}, false, fmt.Errorf("lookup instance: %w", err)
 	}

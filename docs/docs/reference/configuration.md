@@ -20,7 +20,8 @@ greater than zero. Zero, negative, and unparsable values are invalid.
 
 `Validate` checks HCL and the required core trust domain. It does not
 read TLS files or contact Incus. `Configure` also reads the server TLS
-files and builds the runtime.
+files, connects to Incus, and reads `/1.0` at startup to cache the
+standalone server name. No `/1.0` read happens per attestation.
 
 ## Trust domain
 
@@ -82,6 +83,13 @@ denied.
 Identity and selectors come only from the Incus API snapshot resolved
 during attestation. Guest claims locate a candidate; they do not supply
 these values.
+
+On a clustered server, `location` is the instance cluster member from
+that snapshot. On a standalone server, Incus reports instance location as
+`none`. The server plugin reads `environment.server_name` from Incus
+`/1.0` once during `Configure` and uses that name when the instance
+record is `none`. Guest `/1.0` location is never copied into the
+selector.
 
 Agent ID:
 

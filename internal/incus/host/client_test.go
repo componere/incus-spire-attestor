@@ -90,6 +90,12 @@ type fakeStore struct {
 	httpClient *http.Client
 	// httpErr is returned by GetHTTPClient when set.
 	httpErr error
+	// serverInfo is returned by GetServer.
+	serverInfo *api.Server
+	// serverErr is returned by GetServer when set.
+	serverErr error
+	// serverReads is the number of GetServer calls.
+	serverReads int
 }
 
 type instanceKey struct {
@@ -130,7 +136,15 @@ type fakeOp struct {
 
 func newFake() *fakeServer {
 	return &fakeServer{
-		store:   &fakeStore{instances: map[instanceKey]*instanceRecord{}},
+		store: &fakeStore{
+			instances: map[instanceKey]*instanceRecord{},
+			serverInfo: &api.Server{
+				Environment: api.ServerEnvironment{
+					ServerClustered: true,
+					ServerName:      testLocation,
+				},
+			},
+		},
 		project: testProject,
 		root:    true,
 	}
@@ -152,6 +166,20 @@ func (s *fakeServer) WithContext(ctx context.Context) incus.InstanceServer {
 	}
 	s.store.mu.Unlock()
 	return &fakeServer{store: s.store, project: s.project, ctx: ctx}
+}
+
+func (s *fakeServer) GetServer() (*api.Server, string, error) {
+	s.store.mu.Lock()
+	defer s.store.mu.Unlock()
+	s.store.serverReads++
+	if s.store.serverErr != nil {
+		return nil, "", s.store.serverErr
+	}
+	if s.store.serverInfo == nil {
+		return nil, "", nil
+	}
+	info := *s.store.serverInfo
+	return &info, "", nil
 }
 
 func (s *fakeServer) GetInstance(name string) (*api.Instance, string, error) {
@@ -303,7 +331,8 @@ func vmInstance() api.Instance {
 
 func newTestClient(t *testing.T, server incus.InstanceServer) *Client {
 	t.Helper()
-	client := newClient(server)
+	client, err := newClient(server)
+	require.NoError(t, err)
 	client.wait = instantWait
 	return client
 }
@@ -336,6 +365,88 @@ func TestLookupUsesProjectThenContext(t *testing.T) {
 	assert.Equal(t, 1, fake.store.cloneWithContext)
 }
 
+func TestLookupNormalizesStandaloneLocationFromServerMetadata(t *testing.T) {
+	t.Parallel()
+
+	fake := newFake()
+	fake.store.serverInfo.Environment.ServerClustered = false
+	fake.store.serverInfo.Environment.ServerName = testLocation
+	inst := vmInstance()
+	inst.Location = "none"
+	fake.putInstance(testProject, testName, inst, "etag-1")
+	client := newTestClient(t, fake)
+
+	first, found, err := client.Lookup(context.Background(), testProject, testName)
+	require.NoError(t, err)
+	require.True(t, found)
+	second, found, err := client.Lookup(context.Background(), testProject, testName)
+	require.NoError(t, err)
+	require.True(t, found)
+
+	assert.Equal(t, testLocation, first.Location)
+	assert.Equal(t, testLocation, second.Location)
+	assert.Equal(t, 1, fake.store.serverReads, "server metadata must be cached")
+}
+
+func TestLookupRejectsStandaloneSentinelOnClusteredServer(t *testing.T) {
+	t.Parallel()
+
+	fake := newFake()
+	inst := vmInstance()
+	inst.Location = standaloneLocationSentinel
+	fake.putInstance(testProject, testName, inst, "etag-1")
+	client := newTestClient(t, fake)
+
+	got, found, err := client.Lookup(context.Background(), testProject, testName)
+	require.ErrorIs(t, err, attest.ErrDenied)
+	require.ErrorContains(t, err, "instance location is required")
+	assert.False(t, found)
+	assert.Zero(t, got)
+}
+
+func TestNewClientRejectsInvalidServerMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		setup func(*fakeServer)
+		error string
+	}{
+		{
+			name: "read failure",
+			setup: func(fake *fakeServer) {
+				fake.store.serverErr = errors.New("read failed")
+			},
+			error: "read incus server: read failed",
+		},
+		{
+			name: "missing response",
+			setup: func(fake *fakeServer) {
+				fake.store.serverInfo = nil
+			},
+			error: "incus server metadata is unavailable",
+		},
+		{
+			name: "standalone server without name",
+			setup: func(fake *fakeServer) {
+				fake.store.serverInfo.Environment.ServerClustered = false
+				fake.store.serverInfo.Environment.ServerName = ""
+			},
+			error: "incus server name is required",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fake := newFake()
+			tt.setup(fake)
+			client, err := newClient(fake)
+			require.EqualError(t, err, tt.error)
+			assert.Nil(t, client)
+		})
+	}
+}
+
 func TestLookupMapsDetachedCopy(t *testing.T) {
 	t.Parallel()
 
@@ -359,7 +470,7 @@ func TestMapInstanceDetachesConfigAndProfiles(t *testing.T) {
 	t.Parallel()
 
 	source := vmInstance()
-	got, err := mapInstance(testProject, testName, &source)
+	got, err := mapInstance(testProject, testName, &source, "")
 	require.NoError(t, err)
 
 	got.ExpandedConfig[operatorKey] = "mutated"

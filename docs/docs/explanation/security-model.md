@@ -26,8 +26,17 @@ supplies a project hint, that project must be allowed and must equal the
 API project. Without a hint, the server searches every allowed project
 and requires exactly one matching instance. The identity string and
 every selector are built from that API snapshot.
-Re-attestation repeats the lookup, so selectors follow current Incus
-state rather than the first observation.
+Re-attestation repeats the instance lookup, so selectors follow the
+current Incus API record except for the standalone location described below.
+
+Location is host-derived. A standalone Incus server reports instance
+location as `none` while guest `/1.0` reports the server name. The host
+adapter reads `environment.server_name` from Incus `/1.0` once during
+Configure and substitutes that name when the instance record is `none`.
+That cached name refreshes when the plugin is reconfigured. Clustered
+instances keep the current member name from the instance record.
+Guest location is only a locator; it is never copied into identity or
+selectors.
 
 ## The nonce challenge
 
