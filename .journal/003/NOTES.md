@@ -46,3 +46,20 @@ verification) and sandbox01 cannot resolve glab.lol, so the endpoint must be
 IP with an IP SAN. Added P5 to FUNCTEST_PLAN.md: run
 `moon run fleet-cluster:certificate` before leg C; endpoint changed to
 https://10.10.10.14:8443 with tls_ca_path = committed incus-cluster.crt.
+
+## 2026-08-25 19:55 — Cluster cert converged (P5 resolved)
+Escrowed key found on unmerged branches: secrets feat/cluster-tls-key adds
+fleet/shared/cluster-tls.sops.yaml; fleet fix/tls-key-secret-path repoints
+TLS_KEY_SOPS_PATH there (master still points at the old fleet/cluster/
+path). Verified escrowed key pubkey sha256 == committed incus-cluster.crt
+pubkey before swapping. All members Online precheck passed. Ran
+`CI= moon run fleet-cluster:certificate` from the fix worktree with
+GLAB_SECRETS_DIR at the secrets feat worktree (AWS_PROFILE=lab-admin; user
+completed SSO login; PGP decrypt path stalls ~60s on pinentry before KMS
+succeeds). Result: all four members present 27:86:A3... (was bootstrap
+EA:49:30...). From sandbox01: curl --cacert incus-cluster.crt against
+10.10.10.11/.14:8443/1.0 -> 200, ssl_verify_result=0 (plugin TLSCA
+semantics proven). Operator nas01 remote re-pinned automatically.
+Open threads: both supporting branches unmerged (user's flow to PR/merge);
+sandbox01 DNS for glab.lol still NXDOMAIN via 10.10.40.1 despite reported
+fix — leg C uses IP endpoint regardless.

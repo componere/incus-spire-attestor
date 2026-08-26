@@ -30,15 +30,18 @@ compatible with spire-plugin-sdk v1.15.0) and use it for both legs.
   `--accept-routes`. Verified from sandbox01: all four members answer
   `GET /1.0` over HTTPS; adjacent port/address probes (`.14:22`, `.15:8443`,
   `.14:8444`) are dropped.
-- **P5 (blocking, leg C): cluster certificate convergence.** All members
-  still present the bootstrap cert (`CN=root@nas01.glab.lol`, SAN only
-  `nas01.glab.lol` + loopback, no CA:TRUE). The host adapter passes
-  `tls_ca_path` as `ConnectionArgs.TLSCA` — standard CA-pool + SAN
-  verification — and sandbox01 cannot resolve `glab.lol`, so the endpoint
-  must be an IP with a matching IP SAN. Run
-  `moon run fleet-cluster:certificate` to converge the committed
-  `incus-cluster.crt` (CA:TRUE, DNS+IP SANs for all members) before C0;
-  then `tls_ca_path` = that committed cert.
+- **P5 (RESOLVED 2026-08-25, leg C): cluster certificate convergence.**
+  Converged via `CI= moon run fleet-cluster:certificate` from the fleet
+  `fix/tls-key-secret-path` worktree with `GLAB_SECRETS_DIR` at the secrets
+  `feat/cluster-tls-key` worktree (escrowed key pubkey verified against the
+  committed cert before the swap). All four members now present the
+  committed `incus-cluster.crt` (`27:86:A3…`); from sandbox01,
+  `curl --cacert incus-cluster.crt https://10.10.10.11|14:8443/1.0` returns
+  200 with `ssl_verify_result=0` — the plugin's exact `TLSCA` verification
+  path. `tls_ca_path` = committed `incus-cluster.crt`. Open threads: the two
+  supporting branches (fleet `fix/tls-key-secret-path`, secrets
+  `feat/cluster-tls-key`) are unmerged; sandbox01 still gets NXDOMAIN for
+  `glab.lol` names via 10.10.40.1, so the IP endpoint stands.
 - **P2 (leg S): sandbox01 Incus API.** Enable `core.https_address :8443`,
   generate a test client cert, `incus config trust add`. sandbox01's deploy
   is the reset path; still record and revert these mutations.
