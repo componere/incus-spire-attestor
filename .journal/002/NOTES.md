@@ -241,3 +241,10 @@ Ran `.github/scripts/configure_github_repo.py plan`, reviewed its exact operatio
 Creation of the `Default tags` ruleset failed with HTTP 422 because GitHub reports that the `meigma-release-please` integration is not installed for this repository or its owner organization. A second plan confirms that this tag ruleset is the only supported configuration drift left. The script also continues to report its nine documented manual/unsupported settings.
 
 Next: an app owner must install `meigma-release-please` for `componere/incus-spire-attestor` and provision `RELEASE_APP_PRIVATE_KEY`. Then rerun `configure_github_repo.py apply` to create the protected-tag ruleset and merge PR #17.
+
+## 2026-08-25 17:25 — Correction: release credentials use the COMPONERE prefix
+The 17:16 note inferred the wrong replacement names and incorrectly treated the inherited credentials as absent. The user confirmed that the organization-wide names and repository access already exist. PR #17 now uses `vars.COMPONERE_RELEASE_APP_CLIENT_ID` and `secrets.COMPONERE_RELEASE_APP_PRIVATE_KEY` in both release workflows. The mistakenly created repository variable `RELEASE_APP_CLIENT_ID` was deleted. Commit `c172a70` contains the correction; `moon run root:check`, `git diff --check`, CI, and GitHub Pages pass, and the PR is clean and mergeable.
+
+Retried `configure_github_repo.py apply` after the clarification. GitHub still rejects the tag-ruleset bypass with HTTP 422: `Actor meigma-release-please integration must be part of the ruleset source or owner organization`. This response is independent of the Actions credential names. The already-applied repository settings and branch ruleset remain correct; the `Default tags` ruleset is still the only supported drift.
+
+Next: reconcile the ruleset API’s integration-ownership response with the installed app identity or installation scope, then rerun `configure_github_repo.py apply`.
