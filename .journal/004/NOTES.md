@@ -100,3 +100,21 @@ Blocked on user: merge meigma/release #69, then its Release Please release
 PR; pin that release commit SHA in attestor release.yml; open attestor PR.
 Note: incusos-builder must rename application->incusos-builder in its
 melange.yaml when it re-pins the unit.
+
+## 2026-08-25 23:05 — Upstream released, secrets set, attestor PR #21 open
+meigma/release: #69 squash-merged (1fd191d); Release Please PR #70 merged ->
+release commit 09d6be776ca4a9d533101bae1fbc790fb42050a8 = unit 0.1.18; its own
+v0.1.18 tag Release run succeeded end-to-end on the new code (all jobs green;
+non-fatal artifact-metadata warnings observed). GitHub release v0.1.18 exists.
+Signing: generated producer keys and set four repo-level secrets on
+componere/incus-spire-attestor (RPM_SIGNING_KEY = armored OpenPGP RSA-4096,
+fingerprint 62669F2556A504495335054F67C7CFAC4625C77D, uid
+incus-spire-attestor-rpm-001; APK_SIGNING_KEY = AES-256-encrypted RSA-4096
+PEM; both passphrase secrets set). Private material never printed; temp dir
+shredded; publics derivable from stored privates.
+Attestor PR #21 (feat/oci-image, b632465): pinned 0.1.18 everywhere,
+sign-native-packages=true with secret mapping, carrier melange/apko, tar.gz
+archives, mise melange/apko pins, docs. CI green. Awaiting user review/merge.
+After merge: Release Please will open the attestor release PR; first tagged
+release is the full-pipeline proof. Follow-up unchanged: incusos-builder
+melange.yaml application->incusos-builder rename when it re-pins.
