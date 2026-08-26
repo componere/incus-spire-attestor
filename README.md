@@ -48,7 +48,7 @@ Re-attestation repeats the API lookup, so selectors follow the live Incus
 record: a VM migrated to another cluster member keeps its agent ID while its
 `location:` selector moves with it.
 
-## What v1 proves — and does not
+## What this proves
 
 A successful attestation proves the guest claims matched one allowed Incus
 VM and that the responder could read a fresh nonce delivered through that
