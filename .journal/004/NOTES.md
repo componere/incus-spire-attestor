@@ -126,3 +126,14 @@ signed native packages, carrier image, require-oci-image=true.
 Release Please PR #20 (chore(master): release 1.0.0) is open and now includes
 the docs overhaul + release adoption. Publishing v1.0.0 is a user decision
 (session 002 precedent: PR #18 closed unpublished) — awaiting explicit call.
+
+## 2026-08-26 09:25 — v0.1.0 versioning fix; GitHub Actions outage
+User wants first release v0.1.0, not v1.0.0. Root cause: attestor
+release-please-config.json lacks "initial-version" (incusos-builder sets
+0.1.0); manifest 0.0.0 counts as no prior release -> default 1.0.0.
+Fix: PR #22 (fix/initial-version, adds "initial-version": "0.1.0").
+Blocker: GitHub partial system outage (status indicator=major) — Actions runs
+are not being scheduled, so the required ci check never reports and the
+ruleset blocks merge. Auto-merge armed on #22; background monitor polls
+githubstatus and force-push-retriggers CI on recovery. After merge, Release
+Please must regenerate PR #20 as "release 0.1.0" (also Actions-dependent).
