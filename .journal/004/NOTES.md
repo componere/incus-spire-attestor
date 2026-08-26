@@ -50,3 +50,27 @@ removed. Release Please refreshed its release branch after the merge; no
 release published (unchanged posture from session 002). Docs overhaul is
 complete: three site pages verified/corrected, restricted-cert pattern
 documented, README rewritten. Session goal fulfilled.
+
+## 2026-08-25 22:10 — Release scope decided; upstream multi-binary work started
+User wants releases = binaries + containers, no brew/scoop (agreed: Linux-only
+plugins, no workstation install surface). Research (agent ReleaseCliContract,
+evidence from meigma/release@0dee66f source): the pinned release unit is
+strictly single-application/single-binary — release-cli stage fails on a
+duplicate linux/<arch> Binary record, oci-build-inputs v1 requires exactly two
+entries with one shared name, image build stages one file as
+sources/<arch>/application, verifier hardcodes one entrypoint + one layer
+entry. So this repo can adopt neither go-pre-publish nor the OCI leg today
+(explains session 002's bespoke staging job). Also: go-pre-publish asset
+upload has no raw-binary glob → adoption requires tar.gz archives.
+User chose: upstream multi-binary support in meigma/release (over a repo-local
+OCI leg or deferring). Container shape decided: carrier image
+ghcr.io/componere/incus-spire-attestor with both plugins under /usr/bin,
+init-container copy pattern for containerized spire-server; entrypoint rule
+upstream = must name one staged binary.
+Started: worktree meigma/release/.wt/feat-multi-binary-images; contract fixed
+(schemas bump to v2: oci-build-inputs, image-build, verify results; staging by
+real binary name; per-(arch,name) canonical digests; name-set equality across
+arches; one-pass multi-entry layer hashing). Two programmer agents running:
+MultiBinaryCore (Go + tests), MultiBinaryDocsFlow (workflows/docs/self-release
+melange + examples). incusos-builder migration note: its melange.yaml must
+rename application → incusos-builder when it re-pins.
