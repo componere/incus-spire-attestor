@@ -33,3 +33,12 @@ PR: https://github.com/componere/incus-spire-attestor/pull/19 (branch
 docs/overhaul, commit b8a56cd). Next: await review/merge; then remove
 worktree. This closes session 003's open thread on documenting the
 restricted-cert pattern.
+
+## 2026-08-25 21:35 — README rewritten into PR #19
+User asked for a README pass in the same PR: too bare, intro led with plugin
+interface trivia. Rewrote it to lead with purpose (node attestation for Incus
+VMs lacking cloud metadata / provisioned TPM identity), then the challenge
+flow, agent ID + selector example, migration behavior (C3 evidence), v1
+guarantee boundary, source-build getting-started, and existing dev/license
+sections. Dropped interface names from the intro (reference doc covers them).
+Commit 8c452f3 pushed; PR #19 body updated.
