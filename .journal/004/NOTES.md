@@ -172,3 +172,14 @@ Follow-up landed: PR #23 pins deploy.md init-container example to :0.1.0
 (auto-merge armed; GitHub incident still delaying checks).
 Upstream doc gap noted: meigma/release adopt guide should state the APK key
 must be traditional PKCS#1 PEM, not PKCS#8 — candidate upstream docs PR.
+
+## 2026-08-26 10:45 — Session wrap-up items landed
+Attestor PR #23 merged (4630b06): deploy.md example pinned to :0.1.0 (tag :1
+does not exist pre-1.0; live tags 0.1.0/0.1/0/latest confirmed same digest).
+meigma/release PR #71 merged: adopt guide now states the APK signing key must
+be traditional PKCS#1 PEM (with openssl -traditional recipe) — the exact
+failure v0.1.0's first run hit. All implementation worktrees removed in both
+repos; masters/mains fast-forwarded. GitHub incident (partial outage) was
+active throughout; caused webhook lag only, no data issues.
+v0.1.0 is live and fully verified. Remaining open thread: incusos-builder
+application->incusos-builder melange rename at its next unit re-pin.
