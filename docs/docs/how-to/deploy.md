@@ -56,7 +56,7 @@ example with an init container that writes to a shared volume:
 ```yaml
 initContainers:
   - name: incus-server-plugin
-    image: ghcr.io/componere/incus-spire-attestor:1
+    image: ghcr.io/componere/incus-spire-attestor:0.1.0
     command: ["cp", "/usr/bin/incus-server", "/plugins/incus-server"]
     volumeMounts:
       - name: spire-plugins
