@@ -91,3 +91,13 @@ removed). No product defects found. Ops notes: transient systemd-run units
 vanish when stopped (re-run, don't restart); unmanaged fast40 needs
 macvlan+profile-NIC mask; incus move needs explicit dest syntax for
 --target; sandbox01 glab.lol DNS still NXDOMAIN.
+
+## 2026-08-25 21:45 — Close
+Session closed. Landed work: GilmanLab/fleet PR #8 and GilmanLab/secrets
+PR #36 (both squash-merged during the session; local defaults
+fast-forwarded). No incus-spire-attestor source changes; no session branches
+or worktrees to remove. SUMMARY.md written; INDEX row set complete;
+TECH_NOTES extended with functional-verification, restricted-cert
+containment, and cluster-cert facts. Handoff: v1 proven end-to-end on both
+environments (RESULTS.md); recommend documenting the restricted-cert
+deployment pattern in product docs; sandbox01 glab.lol DNS still broken.
