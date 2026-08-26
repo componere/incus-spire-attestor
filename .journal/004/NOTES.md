@@ -118,3 +118,11 @@ archives, mise melange/apko pins, docs. CI green. Awaiting user review/merge.
 After merge: Release Please will open the attestor release PR; first tagged
 release is the full-pipeline proof. Follow-up unchanged: incusos-builder
 melange.yaml application->incusos-builder rename when it re-pins.
+
+## 2026-08-25 23:15 — Attestor PR #21 merged
+Squash-merged as 1be1406; master fast-forwarded; feat/oci-image worktree and
+branches removed. Release pipeline now: reusable unit 0.1.18, tar.gz archives,
+signed native packages, carrier image, require-oci-image=true.
+Release Please PR #20 (chore(master): release 1.0.0) is open and now includes
+the docs overhaul + release adoption. Publishing v1.0.0 is a user decision
+(session 002 precedent: PR #18 closed unpublished) — awaiting explicit call.
