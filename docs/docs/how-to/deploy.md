@@ -28,9 +28,15 @@ launches the plugins from `plugin_cmd`; do not run them directly.
   projects. Read [Security model](../explanation/security-model.md)
   for what that authority implies before you deploy.
 
-## Build the binaries
+## Obtain the binaries
 
-Build both plugins from source:
+Each release publishes per-platform `tar.gz` archives, APK, DEB, and RPM
+packages, and the carrier image
+`ghcr.io/componere/incus-spire-attestor`. Install the packages inside
+guests that run `incus-agent`; use the archives or packages on the
+SPIRE Server host.
+
+To build both plugins from source instead:
 
 ```sh
 mise install
@@ -39,6 +45,27 @@ moon run root:build
 
 The build writes static Linux binaries to `bin/linux_amd64/` and
 `bin/linux_arm64/`.
+
+### Containerized SPIRE Server
+
+The carrier image holds both plugins under `/usr/bin`. It is not a
+runnable application — SPIRE launches the plugins as child processes —
+so copy `incus-server` into the SPIRE Server container filesystem, for
+example with an init container that writes to a shared volume:
+
+```yaml
+initContainers:
+  - name: incus-server-plugin
+    image: ghcr.io/componere/incus-spire-attestor:1
+    command: ["cp", "/usr/bin/incus-server", "/plugins/incus-server"]
+    volumeMounts:
+      - name: spire-plugins
+        mountPath: /plugins
+```
+
+Mount the same volume into the SPIRE Server container and point
+`plugin_cmd` at the copied file. Record the SHA-256 of the copied file
+as `plugin_checksum`.
 
 ## Restrict the Incus client identity
 

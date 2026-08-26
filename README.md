@@ -60,8 +60,9 @@ Incus certificate bounds the server credential to its allowed projects.
 
 ## Getting started
 
-Build the plugins from source (static Linux `amd64` and `arm64` binaries),
-then install and configure them beside SPIRE:
+Releases publish per-platform archives, APK/DEB/RPM packages, and a
+carrier image (`ghcr.io/componere/incus-spire-attestor`) for
+containerized SPIRE Servers. To build from source instead:
 
 ```sh
 mise install
