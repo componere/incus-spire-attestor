@@ -188,3 +188,12 @@ application->incusos-builder melange rename at its next unit re-pin.
 Filed componere/incusos-builder#42: rename melange staged binary
 application -> incusos-builder when re-pinning the release unit to >=0.1.18.
 Open thread closed on this side.
+
+## 2026-08-26 10:27 — Close
+Session closed. All work merged: attestor PRs #19, #21, #22, #23, release PR
+#20 (tag v0.1.0, ce190ee); meigma/release PRs #69, #70 (unit 0.1.18), #71.
+v0.1.0 fully verified (see 10:35 entry). incusos-builder#42 tracks the
+melange rename at re-pin. SUMMARY.md written; INDEX row complete; TECH_NOTES
+refreshed (release unit, signing keys, v0.1.0, restricted-cert docs status).
+Handoff: repo is released and documented; next candidates are the
+componere/pkgs receiver leg and the MkDocs Material migration.
