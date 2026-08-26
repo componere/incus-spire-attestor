@@ -32,3 +32,17 @@ search, timeout/nonce-cleanup), cluster basics + cluster-only (real
 location:<member> selector, cross-member API resolution, migration ->
 location refresh, restricted-cert project scoping as can_edit evidence).
 Awaiting user review.
+
+## 2026-08-25 18:30 — P1 verified; new blocker P5 found
+User landed the network changes (gw01 VLAN40->mgmt allow, tailnet ACL
+tag:sandbox -> 10.10.10.11-14:8443/tcp, sandbox01 accept-routes). Verified
+live from sandbox01: BackendState=Running, tag:sandbox, accept-routes=true;
+GET /1.0 returns 200 on all four members; adjacent probes .14:22, .15:8443,
+.14:8444 all dropped. New finding: members present the bootstrap cluster
+cert (CN=root@nas01.glab.lol, SAN nas01.glab.lol+loopback only, no CA:TRUE)
+— the committed incus-cluster.crt (fingerprint 27:86:A3...) is NOT deployed
+(live EA:49:30...). Host adapter uses ConnectionArgs.TLSCA (CA-pool + SAN
+verification) and sandbox01 cannot resolve glab.lol, so the endpoint must be
+IP with an IP SAN. Added P5 to FUNCTEST_PLAN.md: run
+`moon run fleet-cluster:certificate` before leg C; endpoint changed to
+https://10.10.10.14:8443 with tls_ca_path = committed incus-cluster.crt.

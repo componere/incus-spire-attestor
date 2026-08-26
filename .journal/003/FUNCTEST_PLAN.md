@@ -11,7 +11,7 @@ both unless it exercises environment-specific code.
 | | sandbox01 (leg S) | glab IncusOS cluster (leg C) |
 |---|---|---|
 | Incus | Zabbly stable 7.3, standalone | IncusOS members nas01/lab01–03 |
-| API endpoint | `https://10.10.40.10:8443` (must be enabled) | `https://nas01.glab.lol:8443` (shared cluster cert) |
+| API endpoint | `https://10.10.40.10:8443` (must be enabled) | `https://10.10.10.14:8443` (IP; glab.lol does not resolve from sandbox01) |
 | Instance network | `incusbr0` (NAT) | VLAN 40 (`fast40`, 10.10.40.0/24 DHCP from gw01) |
 | SPIRE Server host | sandbox01 itself | sandbox01 (see prerequisite P1) |
 | SPIRE Agent host | test VM on sandbox01 | test VM on a cluster member |
@@ -24,13 +24,21 @@ compatible with spire-plugin-sdk v1.15.0) and use it for both legs.
 
 ## Prerequisites and open decisions
 
-- **P1 (blocking, leg C): server→cluster-API path.** gw01 drops VLAN 40 →
-  mgmt, and tailnet ACLs give `tag:sandbox` no lab-range access. Recommended:
-  PR to GilmanLab/networking adding a narrow ACL —
-  `tag:sandbox → 10.10.10.11-14:8443` — plus `--accept-routes` on sandbox01;
-  revert after the test. Alternatives: temporary gw01 rule
-  (VLAN40 → 10.10.10.14:8443), or defer leg C. Verify with a TLS probe from
-  sandbox01 before scheduling leg C.
+- **P1 (RESOLVED 2026-08-25, leg C): server→cluster-API path.** gw01 now
+  permits VLAN 40 → mgmt, tailnet ACL grants `tag:sandbox` →
+  `10.10.10.11-14:8443/tcp` only, and sandbox01 enrolls with
+  `--accept-routes`. Verified from sandbox01: all four members answer
+  `GET /1.0` over HTTPS; adjacent port/address probes (`.14:22`, `.15:8443`,
+  `.14:8444`) are dropped.
+- **P5 (blocking, leg C): cluster certificate convergence.** All members
+  still present the bootstrap cert (`CN=root@nas01.glab.lol`, SAN only
+  `nas01.glab.lol` + loopback, no CA:TRUE). The host adapter passes
+  `tls_ca_path` as `ConnectionArgs.TLSCA` — standard CA-pool + SAN
+  verification — and sandbox01 cannot resolve `glab.lol`, so the endpoint
+  must be an IP with a matching IP SAN. Run
+  `moon run fleet-cluster:certificate` to converge the committed
+  `incus-cluster.crt` (CA:TRUE, DNS+IP SANs for all members) before C0;
+  then `tls_ca_path` = that committed cert.
 - **P2 (leg S): sandbox01 Incus API.** Enable `core.https_address :8443`,
   generate a test client cert, `incus config trust add`. sandbox01's deploy
   is the reset path; still record and revert these mutations.
@@ -97,7 +105,7 @@ same-instance attests (unit-covered with race tests).
   cert (P3); `tls_ca_path` is the committed cluster cert
   (`fleet/cluster/tls/incus-cluster.crt`); launch VM `spire-ft` in
   `spire-test` on lab01 (VLAN 40); point a second SPIRE Server instance on
-  sandbox01 at `https://nas01.glab.lol:8443` with
+  sandbox01 at `https://10.10.10.14:8443` with
   `projects=["spire-test"]`; agent `project = "spire-test"`.
 - **C1 Happy path (basic).** Attest + workload SVID fetch, as S1. Pass
   additionally requires **`location:lab01`** — the real cluster-member
