@@ -183,3 +183,8 @@ repos; masters/mains fast-forwarded. GitHub incident (partial outage) was
 active throughout; caused webhook lag only, no data issues.
 v0.1.0 is live and fully verified. Remaining open thread: incusos-builder
 application->incusos-builder melange rename at its next unit re-pin.
+
+## 2026-08-26 10:50 — incusos-builder migration tracked
+Filed componere/incusos-builder#42: rename melange staged binary
+application -> incusos-builder when re-pinning the release unit to >=0.1.18.
+Open thread closed on this side.
