@@ -251,3 +251,8 @@ Next: reconcile the ruleset API’s integration-ownership response with the inst
 
 ## 2026-08-25 17:31 — Release credential PR merged
 The user accepted PR #17 and explicitly chose to ignore the remaining tag-ruleset configuration error. PR #17 was squash-merged into `master` as `32b73077a1c49eb3177628d68c9b2961a90cdbce`. The merged workflows use the established `COMPONERE_RELEASE_APP_CLIENT_ID` and `COMPONERE_RELEASE_APP_PRIVATE_KEY` organization settings. The rejected `Default tags` ruleset was not applied.
+
+## 2026-08-25 17:39 — Dependabot triage completed; merges awaiting OAuth scope
+Triaged all five open Dependabot pull requests and accepted each update: PR #1 `actions/checkout` 7.0.1, PR #2 `jdx/mise-action` 4.2.5, PR #3 `mkdocs-material` 9.7.7, PR #4 `actions/cache` 6.1.0, and PR #5 `github/codeql-action/upload-sarif` 4.37.8. Every PR is clean and mergeable with CI and GitHub Pages passing. The four action commit pins match their release tags, including the dereferenced annotated CodeQL tag. The MkDocs lockfile hashes match the non-yanked PyPI release, which reports no vulnerabilities.
+
+Manually dispatched the `Security Scan` workflow from PR #5. Both amd64 and arm64 jobs built and scanned the plugin binaries and uploaded SARIF successfully. GitHub then rejected the first squash-merge attempt because the current `gh` OAuth token lacks the `workflow` scope needed to merge workflow-file changes. Device authorization is pending; no Dependabot PR has been merged yet.
