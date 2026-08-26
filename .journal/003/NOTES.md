@@ -63,3 +63,13 @@ semantics proven). Operator nas01 remote re-pinned automatically.
 Open threads: both supporting branches unmerged (user's flow to PR/merge);
 sandbox01 DNS for glab.lol still NXDOMAIN via 10.10.40.1 despite reported
 fix — leg C uses IP endpoint regardless.
+
+## 2026-08-25 20:05 — Supporting branches merged
+Squash-merged via gh after green CI: fleet PR #8
+"fix(cluster): escrow the TLS key under fleet/shared" and secrets PR #36
+"feat(fleet): escrow the Incus cluster TLS key". Both local masters
+fast-forwarded and verified: fleet master TLS_KEY_SOPS_PATH now
+fleet/shared/cluster-tls.sops.yaml; secrets master contains the escrow.
+Live cluster state and repo state are now consistent. Merged-branch
+worktrees (.wt/fix-tls-key-secret-path in fleet, .wt/feat-cluster-tls-key
+in secrets) left in place for their owners to prune.

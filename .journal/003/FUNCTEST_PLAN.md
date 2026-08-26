@@ -38,10 +38,10 @@ compatible with spire-plugin-sdk v1.15.0) and use it for both legs.
   committed `incus-cluster.crt` (`27:86:A3…`); from sandbox01,
   `curl --cacert incus-cluster.crt https://10.10.10.11|14:8443/1.0` returns
   200 with `ssl_verify_result=0` — the plugin's exact `TLSCA` verification
-  path. `tls_ca_path` = committed `incus-cluster.crt`. Open threads: the two
-  supporting branches (fleet `fix/tls-key-secret-path`, secrets
-  `feat/cluster-tls-key`) are unmerged; sandbox01 still gets NXDOMAIN for
-  `glab.lol` names via 10.10.40.1, so the IP endpoint stands.
+  path. `tls_ca_path` = committed `incus-cluster.crt`. Supporting branches
+  merged 2026-08-26: fleet PR #8 (`fix/tls-key-secret-path`), secrets PR #36
+  (`feat/cluster-tls-key`). Remaining thread: sandbox01 still gets NXDOMAIN
+  for `glab.lol` names via 10.10.40.1, so the IP endpoint stands.
 - **P2 (leg S): sandbox01 Incus API.** Enable `core.https_address :8443`,
   generate a test client cert, `incus config trust add`. sandbox01's deploy
   is the reset path; still record and revert these mutations.
