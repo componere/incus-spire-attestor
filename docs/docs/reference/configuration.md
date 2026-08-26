@@ -20,14 +20,16 @@ greater than zero. Zero, negative, and unparsable values are invalid.
 
 `Validate` checks HCL and the required core trust domain. It does not
 read TLS files or contact Incus. `Configure` also reads the server TLS
-files, connects to Incus, and reads `/1.0` at startup to cache the
-standalone server name. No `/1.0` read happens per attestation.
+files, connects to Incus, and reads `/1.0` once to cache the standalone
+server name. The server does not read `/1.0` again during attestation;
+the agent reads guest `/1.0` on every attempt.
 
 ## Trust domain
 
-`trust_domain` comes only from SPIRE `CoreConfiguration`. Both plugins
-require it to be nonempty. Put it in the SPIRE agent and server core
-blocks. Do not duplicate it in `plugin_data`.
+`trust_domain` comes only from SPIRE `CoreConfiguration`, set in the
+SPIRE agent and server core blocks. Both plugins require it to be
+nonempty. A `trust_domain` attribute inside `plugin_data` is rejected
+as unknown.
 
 The server uses that value when it constructs the agent ID.
 
@@ -67,10 +69,10 @@ suffix (`user.` alone is invalid). `user.spire.attestor.nonce` and any
 key that starts with `user.spire.attestor.nonce.` are reserved and
 rejected. Duplicate keys are invalid.
 
-`incus_timeout` bounds Incus API lookup and mutation.
+`incus_timeout` bounds each Incus API lookup and the nonce write.
 `challenge_response_timeout` bounds the wait for the agent nonce
-response. `cleanup_timeout` bounds post-attempt removal of the nonce
-key.
+response. `cleanup_timeout` bounds removal of the nonce key after each
+attempt.
 
 Keep `challenge_response_timeout` greater than the agent
 `poll_timeout`. The defaults already have that margin.
