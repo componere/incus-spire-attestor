@@ -74,3 +74,29 @@ arches; one-pass multi-entry layer hashing). Two programmer agents running:
 MultiBinaryCore (Go + tests), MultiBinaryDocsFlow (workflows/docs/self-release
 melange + examples). incusos-builder migration note: its melange.yaml must
 rename application → incusos-builder when it re-pins.
+
+## 2026-08-25 22:35 — Upstream implemented, rehearsed, PR open; attestor branch staged
+meigma/release PR #69 (feat/multi-binary-images, https://github.com/meigma/release/pull/69):
+SelectBinaries keeps every linux Binary record with per-(arch,name) dedup and
+name-set equality; schemas bumped (oci-build-inputs/v2, image-build/v2,
+image-verify/v2); staging by real binary name (application sentinel removed,
+incl. repo self-release melange.yaml -> release-cli); verify derives names
+from work/sources, hashes all usr/bin/<name> entries in one tar pass,
+entrypoint must name one staged binary; go-oci-build.yml no longer extracts
+.result.binary; docs/example/tutorial updated with migration note. Full
+moon root:check green; CI + Nix flake + Kusari green on the PR.
+Functional rehearsal (local, macOS + Docker): built attestor binaries via
+moon, hand-wrote a v2 projection, ran the new release-cli image build with
+the attestor melange.yaml/apko.yaml (melange 0.59.1, apko 1.2.37 from mise)
+then image verify — both passed; per-binary layer digests == canonical
+digests on both platforms; image-digest.txt written. This validates upstream
+AND the attestor configs together, pre-merge.
+Attestor branch feat/oci-image pushed (92c504f): tar.gz archives, melange/
+apko carrier configs, mise pins+lock for melange/apko, four-job release.yml
+with MULTIBINARY_RELEASE_UNIT_SHA placeholder, deploy.md/README image docs.
+sign-native-packages=false (repo has no RPM/APK signing secrets; incusos-
+builder holds repo-level keys — decide separately).
+Blocked on user: merge meigma/release #69, then its Release Please release
+PR; pin that release commit SHA in attestor release.yml; open attestor PR.
+Note: incusos-builder must rename application->incusos-builder in its
+melange.yaml when it re-pins the unit.
