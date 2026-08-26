@@ -259,3 +259,8 @@ Manually dispatched the `Security Scan` workflow from PR #5. Both amd64 and arm6
 
 ## 2026-08-25 17:50 — Dependabot queue cleared
 The GitHub device authorization completed and added the required `workflow` OAuth scope. All five accepted Dependabot PRs were squash-merged: #1 as `0e4641c460054d22849c62ba9dce16cb8d1b903a`, #2 as `10a99ec68c6e982fb3c365dcf4ae9a11a116ac5e`, #3 as `be0ade254bb3d1122dea951f5f894ff2ad47f565`, #4 as `a328e088365ac6a79e3290d821261fb7d7c50929`, and #5 as `80dd5c316dc98c4ed5758f82aa5907b5ba18832f`. No open Dependabot pull requests remain. On the final `master` head, CI, GitHub Pages, and Release Please completed successfully.
+
+## 2026-08-25 17:59 — Close
+Session 002 is complete. PRs #6 through #17 and Dependabot PRs #1 through #5 were squash-merged; final `master` head `80dd5c316dc98c4ed5758f82aa5907b5ba18832f` passed CI, GitHub Pages, and Release Please. At the user's direction, generated v1.0.0 release PR #18 was closed and its branch deleted without creating a tag or production release. Local `master` is current, all session implementation worktrees were removed, the sandbox remains restored, and no pull request is open.
+
+Handoff: v1 is implemented, documented, packaged, dual-licensed, and live-verified. Production release remains deferred, and the rejected `Default tags` ruleset remains accepted configuration drift. Durable context is promoted to `.journal/TECH_NOTES.md`; the complete postmortem is `.journal/002/SUMMARY.md`.
