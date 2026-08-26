@@ -43,14 +43,17 @@ builds:
       - -s -w -buildid=
     mod_timestamp: "{{ .CommitTimestamp }}"
 
+# One tar.gz per platform containing both plugin binaries. The reusable
+# go-pre-publish asset upload only carries archive formats; the canonical raw
+# binaries still reach the OCI leg through artifacts.json Binary records.
 archives:
   - id: binaries
     ids:
       - incus-agent
       - incus-server
     formats:
-      - binary
-    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 nfpms:
   - id: release
