@@ -146,3 +146,29 @@ branch to the already-validated identical-tree SHA (7a752eb) so the required
 ci check applied — no admin bypass. Post-merge Release Please webhook also
 lagged; manually dispatched (workflow_dispatch). PR #20 regenerated as
 "chore(master): release 0.1.0". Awaiting user decision to publish v0.1.0.
+
+## 2026-08-26 10:35 — v0.1.0 released and verified end-to-end
+PR #20 merged (ce190ee) after outage-induced retriggers (close/reopen to get
+ci onto regenerated head 9361979). Tag v0.1.0 created by Release Please.
+First Release run FAILED at staging: nfpm APK signer rejects PKCS#8
+"ENCRYPTED PRIVATE KEY"; my openssl genrsa -aes256 key was PKCS#8. Fix:
+regenerated APK key as traditional PKCS#1 ("RSA PRIVATE KEY", Proc-Type
+4,ENCRYPTED via openssl rsa -traditional -aes256), updated both APK secrets,
+gh run rerun --failed -> all four jobs green.
+Verification battery (all pass):
+- Release v0.1.0 published: 2 tar.gz, 6 native packages (+SBOMs), per-binary
+  SBOMs, checksums.txt + sigstore bundle.
+- Image binaries byte-identical to release-archive binaries (arm64 checked);
+  archive hash matches checksums.txt; entrypoint /usr/bin/incus-server,
+  user 65532, amd64+arm64.
+- cosign verify-blob (checksums bundle): Verified OK. cosign keyless verify
+  (image): verified.
+- gh attestation verify (image + tar.gz): pass with
+  --signer-repo meigma/release (cross-org reusable signer; incusos-builder
+  behaves identically; without --signer-repo it fails by policy design).
+- APK contains .SIGN.RSA.incus-spire-attestor-001.rsa.pub (signed, expected
+  key name). Image tags 0.1.0/0.1/0/latest -> same digest; :1 absent.
+Follow-up landed: PR #23 pins deploy.md init-container example to :0.1.0
+(auto-merge armed; GitHub incident still delaying checks).
+Upstream doc gap noted: meigma/release adopt guide should state the APK key
+must be traditional PKCS#1 PEM, not PKCS#8 — candidate upstream docs PR.
