@@ -62,3 +62,10 @@ moon run docs:build
 ## Security reports
 
 Use [SECURITY.md](SECURITY.md) for private vulnerability reporting.
+
+## Licensing contributions
+
+Unless you explicitly state otherwise, each contribution intentionally
+submitted for inclusion in this repository is licensed under both the
+[Apache License, Version 2.0](LICENSE-APACHE) and the
+[MIT License](LICENSE-MIT). Recipients may use either license.

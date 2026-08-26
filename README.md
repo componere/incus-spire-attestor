@@ -40,4 +40,8 @@ See [SECURITY.md](SECURITY.md) for the current support status and private vulner
 
 ## License
 
-This repository does not currently grant a project license. Select and add a license before publication.
+Except where otherwise noted, this repository is licensed under either of the
+following licenses, at your option:
+
+- [Apache License, Version 2.0](LICENSE-APACHE)
+- [MIT License](LICENSE-MIT)
