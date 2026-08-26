@@ -226,3 +226,7 @@ Created `docs/dual-license` from merged `master`, committed `3319af7`, and opene
 The change adds canonical `LICENSE-APACHE` and `LICENSE-MIT` texts with copyright held by Componere, lets recipients choose either license, applies both grants to future contributions unless explicitly stated otherwise, and preserves separately noted third-party terms. Native package metadata now uses the SPDX expression `Apache-2.0 OR MIT`.
 
 The canonical terms match the Apache and SPDX sources. `moon run root:check`, `goreleaser check`, and an unsigned snapshot rehearsal passed. The snapshot built all APK, DEB, and RPM variants, and APK metadata reports `license = Apache-2.0 OR MIT`. GitHub reports PR #16 clean and mergeable; CI and GitHub Pages passed, and the Pages deploy job correctly skipped.
+
+## 2026-08-25 17:08 — Dual licensing merged
+PR #16 was squash-merged into `master` as `b74df32671caaa10045bb4a05796e80434a88484`.
+Next: remove repository-template `MEIGMA_` prefixes from release workflow secret and variable names, then apply the committed GitHub repository settings.
