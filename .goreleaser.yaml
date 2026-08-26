@@ -62,6 +62,7 @@ nfpms:
     homepage: https://github.com/componere/incus-spire-attestor
     maintainer: Componere
     description: SPIRE node attestor plugins for Incus virtual machines.
+    license: Apache-2.0 OR MIT
     formats:
       - deb
       - rpm
