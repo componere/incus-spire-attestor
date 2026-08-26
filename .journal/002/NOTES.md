@@ -248,3 +248,6 @@ The 17:16 note inferred the wrong replacement names and incorrectly treated the 
 Retried `configure_github_repo.py apply` after the clarification. GitHub still rejects the tag-ruleset bypass with HTTP 422: `Actor meigma-release-please integration must be part of the ruleset source or owner organization`. This response is independent of the Actions credential names. The already-applied repository settings and branch ruleset remain correct; the `Default tags` ruleset is still the only supported drift.
 
 Next: reconcile the ruleset API’s integration-ownership response with the installed app identity or installation scope, then rerun `configure_github_repo.py apply`.
+
+## 2026-08-25 17:31 — Release credential PR merged
+The user accepted PR #17 and explicitly chose to ignore the remaining tag-ruleset configuration error. PR #17 was squash-merged into `master` as `32b73077a1c49eb3177628d68c9b2961a90cdbce`. The merged workflows use the established `COMPONERE_RELEASE_APP_CLIENT_ID` and `COMPONERE_RELEASE_APP_PRIVATE_KEY` organization settings. The rejected `Default tags` ruleset was not applied.
