@@ -5,11 +5,13 @@
 #
 # Release Please owns the tag, the notes, and the initial draft. The jobs
 # below build, verify, sign, and then publish: GitHub Release assets and the
-# GHCR carrier image. Native packages are currently unsigned; enable
-# sign-native-packages and add the RPM/APK signing secrets to change that.
+# GHCR carrier image.
 #
-# Required settings (organization level, scoped to this repository):
+# Required settings:
 # - vars.COMPONERE_RELEASE_APP_CLIENT_ID / secrets.COMPONERE_RELEASE_APP_PRIVATE_KEY
+#   (organization level, scoped to this repository)
+# - secrets.RPM_SIGNING_KEY, RPM_SIGNING_PASSPHRASE, APK_SIGNING_KEY,
+#   APK_SIGNING_PASSPHRASE (repository level)
 name: Release
 
 on:
@@ -31,10 +33,15 @@ jobs:
       attestations: read
       contents: read
       id-token: write
-    uses: meigma/release/.github/workflows/go-pre-publish.yml@MULTIBINARY_RELEASE_UNIT_SHA
+    uses: meigma/release/.github/workflows/go-pre-publish.yml@09d6be776ca4a9d533101bae1fbc790fb42050a8
     with:
       sign-and-notarize-macos: false
-      sign-native-packages: false
+      sign-native-packages: true
+    secrets:
+      rpm-signing-key: ${{ secrets.RPM_SIGNING_KEY }}
+      rpm-signing-passphrase: ${{ secrets.RPM_SIGNING_PASSPHRASE }}
+      apk-signing-key: ${{ secrets.APK_SIGNING_KEY }}
+      apk-signing-passphrase: ${{ secrets.APK_SIGNING_PASSPHRASE }}
 
   oci-image:
     name: Build OCI image
@@ -43,7 +50,7 @@ jobs:
       actions: read
       attestations: read
       contents: read
-    uses: meigma/release/.github/workflows/go-oci-build.yml@MULTIBINARY_RELEASE_UNIT_SHA
+    uses: meigma/release/.github/workflows/go-oci-build.yml@09d6be776ca4a9d533101bae1fbc790fb42050a8
     with:
       artifact-id: ${{ needs.release-assets.outputs.oci-input-artifact-id }}
       artifact-digest: ${{ needs.release-assets.outputs.oci-input-artifact-digest }}
@@ -58,7 +65,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: meigma/release/.github/workflows/publish-oci-image.yml@MULTIBINARY_RELEASE_UNIT_SHA
+    uses: meigma/release/.github/workflows/publish-oci-image.yml@09d6be776ca4a9d533101bae1fbc790fb42050a8
     with:
       artifact-id: ${{ needs.oci-image.outputs.artifact-id }}
       artifact-digest: ${{ needs.oci-image.outputs.artifact-digest }}
@@ -76,11 +83,11 @@ jobs:
       attestations: write
       contents: read
       id-token: write
-    uses: meigma/release/.github/workflows/publish-github-release.yml@MULTIBINARY_RELEASE_UNIT_SHA
+    uses: meigma/release/.github/workflows/publish-github-release.yml@09d6be776ca4a9d533101bae1fbc790fb42050a8
     with:
       artifact-id: ${{ needs.release-assets.outputs.artifact-id }}
       artifact-digest: ${{ needs.release-assets.outputs.artifact-digest }}
-      checksum-signing-workflow-ref: meigma/release/.github/workflows/go-pre-publish.yml@MULTIBINARY_RELEASE_UNIT_SHA
+      checksum-signing-workflow-ref: meigma/release/.github/workflows/go-pre-publish.yml@09d6be776ca4a9d533101bae1fbc790fb42050a8
       require-oci-image: true
       oci-image-reference: ${{ needs.oci-publish.outputs.image-reference }}
       release-app-client-id: ${{ vars.COMPONERE_RELEASE_APP_CLIENT_ID }}
