@@ -230,3 +230,14 @@ The canonical terms match the Apache and SPDX sources. `moon run root:check`, `g
 ## 2026-08-25 17:08 — Dual licensing merged
 PR #16 was squash-merged into `master` as `b74df32671caaa10045bb4a05796e80434a88484`.
 Next: remove repository-template `MEIGMA_` prefixes from release workflow secret and variable names, then apply the committed GitHub repository settings.
+
+## 2026-08-25 17:16 — Release credential PR opened; repository settings partially applied
+Created `fix/release-credential-names` from merged `master`, committed `0e84978`, and opened PR #17, `fix(release): remove template credential prefixes`: https://github.com/componere/incus-spire-attestor/pull/17. Both release workflows now use `vars.RELEASE_APP_CLIENT_ID` and `secrets.RELEASE_APP_PRIVATE_KEY`; a repository-wide search finds no remaining `MEIGMA_` credential reference. `moon run root:check` and `git diff --check` pass. GitHub reports the PR clean and mergeable; CI and GitHub Pages passed.
+
+The repository had no repository-scoped Actions secrets or variables. Organization-level names could not be enumerated because the current token lacks organization Actions secret/variable administration. The public client ID for `meigma-release-please` was resolved from GitHub and stored as repository variable `RELEASE_APP_CLIENT_ID`. The private key remains unavailable and was not fabricated or copied.
+
+Ran `.github/scripts/configure_github_repo.py plan`, reviewed its exact operations, then ran `apply`. GitHub accepted the general repository settings, immutable releases, private vulnerability reporting, automated security fixes, and the active `Default branch` ruleset. The branch ruleset requires pull requests, squash merges, linear history, verified signatures, and the `ci` status check; it blocks deletion and non-fast-forward updates, with repository administrators as the explicit bypass.
+
+Creation of the `Default tags` ruleset failed with HTTP 422 because GitHub reports that the `meigma-release-please` integration is not installed for this repository or its owner organization. A second plan confirms that this tag ruleset is the only supported configuration drift left. The script also continues to report its nine documented manual/unsupported settings.
+
+Next: an app owner must install `meigma-release-please` for `componere/incus-spire-attestor` and provision `RELEASE_APP_PRIVATE_KEY`. Then rerun `configure_github_repo.py apply` to create the protected-tag ruleset and merge PR #17.
