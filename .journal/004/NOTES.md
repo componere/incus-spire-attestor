@@ -42,3 +42,11 @@ flow, agent ID + selector example, migration behavior (C3 evidence), v1
 guarantee boundary, source-build getting-started, and existing dev/license
 sections. Dropped interface names from the intro (reference doc covers them).
 Commit 8c452f3 pushed; PR #19 body updated.
+
+## 2026-08-25 21:45 — PR #19 merged, cleaned up
+Squash-merged as c0d26d3 (checks green: ci, GitHub Pages). Local master
+fast-forwarded; docs/overhaul worktree, local branch, and remote branch
+removed. Release Please refreshed its release branch after the merge; no
+release published (unchanged posture from session 002). Docs overhaul is
+complete: three site pages verified/corrected, restricted-cert pattern
+documented, README rewritten. Session goal fulfilled.
