@@ -219,3 +219,10 @@ Committed the standalone location fix as `8af987a`, pushed `feat/phase-8-sandbox
 ## 2026-08-25 16:56 — Phase 8 merged
 PR #15 was squash-merged into `master` as `46707ebc14cc7f42fc930dd05fe2e2cc53d2adbd`.
 Next: open a separate pull request that dual-licenses the repository under Apache-2.0 and MIT.
+
+## 2026-08-25 17:04 — Dual-license pull request opened
+Created `docs/dual-license` from merged `master`, committed `3319af7`, and opened PR #16, `docs: dual-license under Apache-2.0 and MIT`: https://github.com/componere/incus-spire-attestor/pull/16.
+
+The change adds canonical `LICENSE-APACHE` and `LICENSE-MIT` texts with copyright held by Componere, lets recipients choose either license, applies both grants to future contributions unless explicitly stated otherwise, and preserves separately noted third-party terms. Native package metadata now uses the SPDX expression `Apache-2.0 OR MIT`.
+
+The canonical terms match the Apache and SPDX sources. `moon run root:check`, `goreleaser check`, and an unsigned snapshot rehearsal passed. The snapshot built all APK, DEB, and RPM variants, and APK metadata reports `license = Apache-2.0 OR MIT`. GitHub reports PR #16 clean and mergeable; CI and GitHub Pages passed, and the Pages deploy job correctly skipped.
