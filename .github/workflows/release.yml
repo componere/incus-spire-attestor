@@ -161,7 +161,7 @@ jobs:
       artifact-digest: ${{ needs.release-assets.outputs.artifact-digest }}
       checksum-signing-workflow-ref: ${{ github.repository }}/.github/workflows/release.yml@${{ github.ref }}
       require-oci-image: false
-      release-app-client-id: ${{ vars.MEIGMA_RELEASE_APP_CLIENT_ID }}
+      release-app-client-id: ${{ vars.COMPONERE_RELEASE_APP_CLIENT_ID }}
       publish-release: true
     secrets:
-      release-app-private-key: ${{ secrets.MEIGMA_RELEASE_APP_PRIVATE_KEY }}
+      release-app-private-key: ${{ secrets.COMPONERE_RELEASE_APP_PRIVATE_KEY }}
