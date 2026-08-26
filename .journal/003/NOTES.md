@@ -73,3 +73,21 @@ fleet/shared/cluster-tls.sops.yaml; secrets master contains the escrow.
 Live cluster state and repo state are now consistent. Merged-branch
 worktrees (.wt/fix-tls-key-secret-path in fleet, .wt/feat-cluster-tls-key
 in secrets) left in place for their owners to prune.
+
+## 2026-08-25 21:20 — Functional test run complete: all pass
+Executed the full plan; results in .journal/003/RESULTS.md. Highlights:
+SPIRE v1.15.3; plugins from master 80dd5c3 (agent 3444a5fb…, server
+8dc0b0bb…). Leg S (sandbox01/spike): S1-S7 PASS incl. standalone
+location substitution, selector refresh, container denial (both DMI-unreadable
+and explicit type-denial layers), UUID-mismatch denial before mutation,
+no-hint search, 1ms challenge timeout with clean nonce removal. Leg C
+(glab cluster): C0-C4 PASS incl. real location:lab01 selector via nas01
+endpoint (cross-member), stop-move migration lab01→lab02 with same agent ID
+and location:lab02 refresh, restricted cert scoped to spire-test project
+(default project invisible/403) proving project-scoped can_edit containment.
+Both environments restored to captured pre-state (spike keeps pre-existing
+user.spire.test; cluster back to default-only; sandbox listener/trust
+removed). No product defects found. Ops notes: transient systemd-run units
+vanish when stopped (re-run, don't restart); unmanaged fast40 needs
+macvlan+profile-NIC mask; incus move needs explicit dest syntax for
+--target; sandbox01 glab.lol DNS still NXDOMAIN.
