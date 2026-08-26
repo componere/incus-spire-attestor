@@ -47,6 +47,12 @@ the challenge and is not logged. The agent returns it once as the
 challenge response, where the server compares it as equal-length bytes
 in constant time.
 
+The nonce write is guarded. The server re-reads the instance,
+revalidates its name, type, and UUID, and sends the instance ETag with
+the update. A concurrent configuration change fails that precondition,
+and the write retries from a fresh read instead of overwriting the
+change.
+
 The agent accepts only that exact key grammar, then reads the value
 through `/dev/incus/sock`. Host-set `user.*` keys are visible on the
 guest configuration channel, which is why the nonce can move from Incus
@@ -79,7 +85,7 @@ workload attestor.
 ## Credentials and the Incus client
 
 The server plugin’s TLS CA, client certificate, and client key are part
-of the trusted computing base. They exist only beside `incus-server`.
+of the trusted computing base. Deploy them only beside `incus-server`.
 Anyone who can use that client identity can look up allowed instances
 and participate in the same configuration channel the challenge uses.
 
@@ -91,13 +97,19 @@ subvert attestation.
 Incus 7.3 requires `can_edit` for the instance update that writes the
 nonce. That entitlement is not limited to the `user.spire.attestor.nonce.`
 prefix. The same identity can also modify, rename, or delete authorized
-instances.
+instances. There is no v1 configuration that narrows mutation to the
+nonce prefix.
 
-Limit the client to the smallest practical projects and instances, keep
-the certificate and key only on the server plugin host, and restrict its
-network path to the Incus API. If that blast radius is unacceptable,
-do not deploy v1. There is no v1 configuration that narrows mutation to
-the nonce prefix.
+A restricted Incus TLS certificate bounds that authority to its listed
+projects. A client restricted to the allowlisted projects completes the
+whole attestation flow — instance lookup, nonce write, and nonce
+removal — while every other project is invisible to its list requests
+and inaccessible on direct request. The blast radius is then the
+instances of the allowed projects, not the whole Incus server.
+[Deploy](../how-to/deploy.md) shows that configuration.
+
+If instance-edit authority over the allowed projects is still
+unacceptable, do not deploy v1.
 
 ## Cleanup and leftover keys
 

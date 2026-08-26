@@ -5,36 +5,59 @@ description: Deploy the Incus SPIRE NodeAttestor plugins on Linux.
 
 # Deploy the Incus NodeAttestor plugins
 
-Place `incus-agent` and `incus-server` where SPIRE can launch them, record
-SHA-256 checksums, restrict Incus credentials to the server plugin, and
-configure both NodeAttestors under the logical name `incus`.
-
-This procedure does not publish a release and does not run the plugin
-binaries. Obtain matching Linux binaries for your architecture, then
-configure SPIRE to launch them.
+This guide installs `incus-agent` and `incus-server` beside SPIRE,
+restricts the Incus client identity that the server plugin uses, and
+configures both NodeAttestors under the logical name `incus`. SPIRE
+launches the plugins from `plugin_cmd`; do not run them directly.
 
 ## Prerequisites
 
-- Linux `amd64` or `arm64` hosts for both plugins. The plugins are not
-  documented for other operating systems or architectures.
-- A SPIRE Agent process inside an Incus virtual machine that is allowed
-  by the server plugin `projects` list. That guest must expose
+- Linux `amd64` or `arm64` hosts for both plugins. Other operating
+  systems and architectures are not supported.
+- A SPIRE Agent inside an Incus virtual machine whose project the
+  server plugin `projects` list allows. The guest must expose
   `/dev/incus/sock` and `/sys/class/dmi/id/product_uuid` to the agent
-  process. The guest cloud-init `local-hostname` must equal the Incus
+  process, its cloud-init `local-hostname` must equal the Incus
   instance name, and the instance must have
   `volatile.cloud-init.instance-id` set.
 - Network reachability from the SPIRE Server host to the Incus API
   endpoint you will set in `incus_endpoint`.
-- An Incus client identity that can look up allowed instances and, on
-  Incus 7.3, update instance configuration. If that `can_edit` blast
-  radius is unacceptable, stop. See [Security model](../explanation/security-model.md).
-- The Incus CA certificate, client certificate, and client key for that
-  identity. Mount those files only beside `incus-server`. Do not copy
-  them into the guest or onto any other host.
+- An Incus TLS client identity for the server plugin: the Incus CA
+  certificate, a client certificate, and the client key. The identity
+  needs instance lookup and instance-edit authorization in the allowed
+  projects. Read [Security model](../explanation/security-model.md)
+  for what that authority implies before you deploy.
 
-Set `plugin_cmd` and `plugin_checksum` on the outer SPIRE plugin block.
-Do not put them in `plugin_data`. Put `trust_domain` only in the SPIRE
-agent and server core blocks.
+## Build the binaries
+
+Build both plugins from source:
+
+```sh
+mise install
+moon run root:build
+```
+
+The build writes static Linux binaries to `bin/linux_amd64/` and
+`bin/linux_arm64/`.
+
+## Restrict the Incus client identity
+
+Create a dedicated TLS client certificate for the server plugin and add
+it to the Incus trust store. Then restrict it to the projects you will
+allowlist in `projects`:
+
+```sh
+incus config trust edit <fingerprint>
+```
+
+Set `restricted: true` and list the allowed projects.
+
+A restricted identity completes the whole attestation flow — instance
+lookup, nonce write, and nonce removal — while every other project is
+invisible to its list requests and returns HTTP 403 on direct access.
+Within its allowed projects, the identity can still modify, rename, or
+delete instances. If that remaining authority is unacceptable, stop; no
+plugin configuration narrows it further.
 
 ## Place the binaries
 
@@ -46,7 +69,8 @@ Keep the TLS files on the server host only, in a directory that is not
 shared with guests. Restrict filesystem permissions so only the SPIRE
 Server account can read `tls_ca_path`, `tls_cert_path`, and
 `tls_key_path`. Restrict network exposure so that client identity can
-reach the Incus API and nothing else.
+reach the Incus API and nothing else. Do not copy the TLS files into
+the guest or onto any other host.
 
 ## Record SHA-256 checksums
 
@@ -57,7 +81,6 @@ sha256sum /opt/spire/plugins/incus-agent
 sha256sum /opt/spire/plugins/incus-server
 ```
 
-On macOS or BSD userland, `shasum -a 256` produces the same digest.
 Record the 64 hexadecimal digits for each file. Those values become
 `plugin_checksum`.
 
@@ -103,10 +126,9 @@ Replace the checksum placeholder with the SHA-256 of the installed
 with values for this deployment. `user_selectors` may be omitted when
 you do not want configured `user.*` selectors.
 
-Keep `challenge_response_timeout` greater than the agent `poll_timeout`.
-The defaults are `10s` and `5s`. If you change either value, preserve
-that margin so the guest can observe the nonce key before the server
-gives up.
+Keep `challenge_response_timeout` greater than the agent `poll_timeout`
+so the guest can observe the nonce key before the server gives up. The
+defaults, `10s` and `5s`, already have that margin.
 
 Field meanings, defaults, and bounds are in
 [Configuration](../reference/configuration.md).
@@ -136,7 +158,7 @@ plugins {
 ```
 
 Replace the checksum placeholder with the SHA-256 of the installed
-`incus-agent` file. `project` is optional; set it to the guest’s Incus
+`incus-agent` file. `project` is optional; set it to the guest's Incus
 project when you know it. `poll_timeout` may be omitted to use `5s`.
 
 ## Restart and verify
@@ -172,8 +194,8 @@ two names match.
 To roll back, restore the previous plugin paths, checksums, and
 `plugin_data`, then restart SPIRE Server and SPIRE Agent.
 
-If the Incus client certificate or key may have been exposed, revoke
-that client identity on the Incus side, replace the files mounted beside
-`incus-server`, update `tls_cert_path` and `tls_key_path` if the paths
-changed, and restart SPIRE Server. Remove the old key material from the
-server host.
+If the Incus client certificate or key may have been exposed, remove
+that certificate from the Incus trust store, replace the files mounted
+beside `incus-server`, update `tls_cert_path` and `tls_key_path` if the
+paths changed, and restart SPIRE Server. Remove the old key material
+from the server host.
