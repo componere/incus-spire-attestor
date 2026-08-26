@@ -137,3 +137,12 @@ are not being scheduled, so the required ci check never reports and the
 ruleset blocks merge. Auto-merge armed on #22; background monitor polls
 githubstatus and force-push-retriggers CI on recovery. After merge, Release
 Please must regenerate PR #20 as "release 0.1.0" (also Actions-dependent).
+
+## 2026-08-26 09:50 — initial-version fix merged; release PR now 0.1.0
+PR #22 merged (f49cd5c) adding "initial-version": "0.1.0" to
+release-please-config.json. GitHub outage friction: pull_request webhooks
+lagged; recovered runs attached to a pre-amend SHA; resolved by resetting the
+branch to the already-validated identical-tree SHA (7a752eb) so the required
+ci check applied — no admin bypass. Post-merge Release Please webhook also
+lagged; manually dispatched (workflow_dispatch). PR #20 regenerated as
+"chore(master): release 0.1.0". Awaiting user decision to publish v0.1.0.
