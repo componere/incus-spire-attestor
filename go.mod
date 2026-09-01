@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/lxc/incus/v7 v7.3.0
-	github.com/spiffe/spire-plugin-sdk v1.15.0
+	github.com/spiffe/spire-plugin-sdk v1.15.3
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.83.0
 )
