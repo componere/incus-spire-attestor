@@ -8,7 +8,7 @@ require (
 	github.com/lxc/incus/v7 v7.3.0
 	github.com/spiffe/spire-plugin-sdk v1.15.0
 	github.com/stretchr/testify v1.11.1
-	google.golang.org/grpc v1.83.0
+	google.golang.org/grpc v1.84.0
 )
 
 require (
